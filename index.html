@@ -1,0 +1,1274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chayka Group Logistic (CGL) Indications</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  --bg:#f0f2f5;--card:#ffffff;--text:#1a1a1a;--text-muted:#888888;--border:#e0e0e0;--border-soft:#eeeeee;
+  --input-bg:#fafafa;--tab-bg:#ffffff;--btn-dark-bg:#1a1a1a;--btn-dark-fg:#ffffff;
+  --err:#cc0000;--success:#16a34a;--warn:#d97706;--val-outline:#aac0f8;
+  --status-none-bg:#f3f3f3;--status-none-fg:#999999;--status-partly-bg:#fff2d9;--status-partly-fg:#a35c00;
+  --status-done-bg:#d4edda;--status-done-fg:#1f7a37;--owner-clr:#3457c9;--charterer-clr:#16a34a;--estimate-clr:#a35c00;
+}
+[data-theme="dark"]{
+  --bg:#0d0d0d;--card:#171717;--text:#e0e0e0;--text-muted:#555555;--border:#2a2a2a;--border-soft:#222222;
+  --input-bg:#111111;--tab-bg:#111111;--btn-dark-bg:#d0d0d0;--btn-dark-fg:#0d0d0d;
+  --err:#f87171;--success:#4ade80;--warn:#fbbf24;--val-outline:#3355aa;
+  --status-none-bg:#1c1c1c;--status-none-fg:#666666;--status-partly-bg:#3a2c0d;--status-partly-fg:#fbbf24;
+  --status-done-bg:#153a20;--status-done-fg:#4ade80;--owner-clr:#7d9bf0;--charterer-clr:#4ade80;--estimate-clr:#fbbf24;
+}
+body{font-family:'IBM Plex Sans',Arial,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+body::-webkit-scrollbar,*::-webkit-scrollbar{width:8px;height:8px}
+body::-webkit-scrollbar-track,*::-webkit-scrollbar-track{background:transparent}
+body::-webkit-scrollbar-thumb,*::-webkit-scrollbar-thumb{background:var(--border);border-radius:10px}
+body,*{scrollbar-width:thin;scrollbar-color:var(--border) transparent}
+
+.tab-bar{background:var(--tab-bg);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:110}
+.tab-bar-inner{max-width:1180px;margin:0 auto;padding:0 20px;display:flex;align-items:center;gap:12px;height:54px}
+.tab-bar-brand{font-size:13px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;display:flex;align-items:center;gap:8px;white-space:nowrap}
+.tab-bar-brand b{color:var(--text)}
+.autosave-msg{font-size:11px;color:var(--success);opacity:0;transition:opacity .3s;white-space:nowrap}
+.autosave-msg.show{opacity:1}
+.tab-spacer{flex:1}
+.theme-toggle{display:flex;align-items:center;justify-content:center;width:34px;height:34px;border:0.5px solid var(--border);border-radius:8px;background:transparent;cursor:pointer;color:var(--text-muted);font-size:16px;flex-shrink:0}
+.theme-toggle:hover{background:var(--input-bg);color:var(--text)}
+
+.main-tab-bar{background:var(--tab-bg);border-bottom:1px solid var(--border);position:sticky;top:54px;z-index:105}
+.main-tab-bar-inner{max-width:1180px;margin:0 auto;padding:10px 20px;display:flex;gap:8px}
+.main-tab-btn{padding:9px 16px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text-muted);font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit}
+.main-tab-btn.active{background:var(--btn-dark-bg);color:var(--btn-dark-fg);border-color:transparent}
+
+.voyage-bar{background:var(--tab-bg);border-bottom:1px solid var(--border);position:sticky;top:98px;z-index:99}
+.voyage-bar-inner{max-width:1180px;margin:0 auto;padding:10px 20px;display:flex;align-items:center;gap:8px;overflow-x:auto}
+.voyage-pill{display:flex;align-items:center;gap:8px;padding:7px 12px;border-radius:20px;border:1.5px solid var(--border);background:var(--card);cursor:pointer;font-size:12px;font-weight:600;color:var(--text-muted);white-space:nowrap}
+.voyage-pill.active{background:var(--btn-dark-bg);color:var(--btn-dark-fg);border-color:transparent}
+.voyage-pill .prog-dot{width:7px;height:7px;border-radius:50%;background:var(--status-none-fg);flex-shrink:0}
+.voyage-pill .del-x{opacity:.5;font-size:13px;padding:0 2px}
+.voyage-pill .del-x:hover{opacity:1;color:var(--err)}
+.add-voyage-btn{flex-shrink:0;padding:7px 14px;border-radius:20px;border:1.5px dashed var(--border);background:transparent;color:var(--text-muted);font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap}
+
+.cargo-bar{background:var(--tab-bg);border-bottom:1px solid var(--border);position:sticky;top:98px;z-index:99}
+.cargo-bar-inner{max-width:1180px;margin:0 auto;padding:10px 20px;display:flex;align-items:center;gap:8px;overflow-x:auto}
+.cargo-pill{display:flex;align-items:center;gap:8px;padding:7px 14px;border-radius:20px;border:1.5px solid var(--border);background:var(--card);cursor:pointer;font-size:12px;font-weight:600;color:var(--text-muted);white-space:nowrap}
+.cargo-pill.active{background:var(--btn-dark-bg);color:var(--btn-dark-fg);border-color:transparent}
+.cargo-pill .del-x{opacity:.45;font-size:12px}
+.cargo-pill .del-x:hover{opacity:1;color:var(--err)}
+.add-cargo-btn{flex-shrink:0;padding:7px 14px;border-radius:20px;border:1.5px dashed var(--border);background:transparent;color:var(--text-muted);font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap}
+
+.wrap{max-width:1180px;margin:0 auto;padding:20px 20px 60px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px 20px;margin-bottom:14px}
+.section-title{font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px}
+
+.board-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.direction-toggle{display:flex;gap:6px}
+.direction-btn{padding:8px 16px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text-muted);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit}
+.direction-btn.active{background:var(--btn-dark-bg);color:var(--btn-dark-fg);border-color:transparent}
+.export-btn{padding:8px 16px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit}
+.export-btn:hover{background:var(--input-bg)}
+
+.board-layout{display:grid;grid-template-columns:1fr 340px;gap:16px;align-items:start}
+@media(max-width:940px){.board-layout{grid-template-columns:1fr}}
+
+.indication-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
+.indication-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px 18px;display:flex;flex-direction:column;gap:2px}
+.indication-route{font-size:12px;font-weight:700;color:var(--text);line-height:1.35;margin-bottom:4px;min-height:32px}
+.indication-big{font-size:32px;font-weight:700;color:var(--text);line-height:1.05;display:flex;align-items:baseline;gap:7px;cursor:pointer;width:fit-content}
+.indication-big:hover{color:var(--val-outline)}
+.indication-big .unit{font-size:13px;font-weight:600;color:var(--text-muted)}
+.indication-updated{font-size:10px;color:var(--text-muted);margin:3px 0 10px}
+.idea-block{margin-top:6px}
+.idea-block-title{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;margin-bottom:4px}
+.idea-block-title.owners{color:var(--owner-clr)}
+.idea-block-title.charterers{color:var(--charterer-clr)}
+.idea-item{font-size:11px;line-height:1.4;color:var(--text);padding:4px 0;border-top:1px solid var(--border-soft)}
+.idea-item:first-child{border-top:none}
+.idea-item .src{display:block;color:var(--text-muted);font-size:9.5px;margin-top:1px}
+.idea-empty{font-size:10.5px;color:var(--text-muted);font-style:italic;padding:2px 0}
+.idea-add-btn{font-size:10px;color:var(--text-muted);cursor:pointer;margin-top:5px;text-decoration:underline;background:none;border:none;padding:0;font-family:inherit}
+.idea-add-btn:hover{color:var(--text)}
+.card-del-route{align-self:flex-end;font-size:11px;color:var(--text-muted);cursor:pointer;background:none;border:none;font-family:inherit;margin-top:8px}
+.card-del-route:hover{color:var(--err)}
+.add-route-card{border:1.5px dashed var(--border);border-radius:12px;display:flex;align-items:center;justify-content:center;min-height:140px;color:var(--text-muted);font-size:12.5px;font-weight:600;cursor:pointer;background:transparent}
+.add-route-card:hover{border-color:var(--val-outline);color:var(--text)}
+
+.ai-panel{position:sticky;top:150px}
+.ai-panel-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.ai-panel-head .section-title{margin-bottom:0}
+.gear-btn{background:none;border:none;cursor:pointer;font-size:14px;color:var(--text-muted);padding:2px}
+.gear-btn:hover{color:var(--text)}
+.ai-textarea{width:100%;min-height:70px;font-size:12.5px;border:1px solid var(--border);border-radius:8px;padding:9px 11px;background:var(--input-bg);color:var(--text);font-family:inherit;resize:vertical}
+.ai-textarea:focus{outline:none;border-color:var(--val-outline)}
+.ai-toggle-row{display:flex;gap:14px;margin:8px 0;flex-wrap:wrap}
+.ai-toggle{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-muted);cursor:pointer}
+.ai-toggle input{accent-color:var(--btn-dark-bg);cursor:pointer}
+.btn-primary{font-family:inherit;font-size:12.5px;padding:9px 16px;border-radius:7px;cursor:pointer;border:none;background:var(--btn-dark-bg);color:var(--btn-dark-fg);font-weight:600;width:100%}
+.btn-primary:disabled{opacity:.55;cursor:default}
+.btn-ghost{font-family:inherit;font-size:12px;padding:8px 14px;border-radius:7px;cursor:pointer;border:0.5px solid var(--border);background:transparent;color:var(--text)}
+.ai-status{font-size:11px;color:var(--text-muted);margin-top:8px;line-height:1.4}
+.ai-status.err{color:var(--err)}
+.ai-key-status{font-size:10px;color:var(--text-muted);margin-top:6px}
+.ai-summary-box{margin-top:10px;padding:10px 12px;border-radius:8px;background:var(--input-bg);border:1px solid var(--border-soft);font-size:12px;line-height:1.5}
+.note-item{font-size:11.5px;padding:7px 0;border-top:1px solid var(--border-soft);line-height:1.4}
+.note-item:first-child{border-top:none}
+.note-item .ts{display:block;color:var(--text-muted);font-size:9.5px;margin-top:2px}
+.hist-item{font-size:11px;padding:7px 0;border-top:1px solid var(--border-soft);line-height:1.4}
+.hist-item .q{color:var(--text-muted)}
+.hist-item .ts{display:block;color:var(--text-muted);font-size:9.5px;margin-top:2px}
+.spin{display:inline-block;width:11px;height:11px;border:2px solid var(--border);border-top-color:var(--text);border-radius:50%;animation:spin .7s linear infinite;vertical-align:-1px;margin-right:5px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.field{display:flex;flex-direction:column;gap:5px;margin-bottom:10px}
+.field label{font-size:10.5px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em}
+.field input,.field textarea{width:100%;font-size:13px;border:1px solid var(--border);border-radius:6px;padding:8px 10px;background:var(--input-bg);color:var(--text);font-family:inherit}
+.field-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.field.full{grid-column:1/-1}
+.port-cols{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.field-grid.cols-3{grid-template-columns:1fr 1fr 1fr}
+@media(max-width:700px){.port-cols{grid-template-columns:1fr}.field-grid{grid-template-columns:1fr}.field-grid.cols-3{grid-template-columns:1fr 1fr}}
+.noa-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid var(--border-soft)}
+.noa-row:last-child{border-bottom:none}
+.noa-row-label{font-size:11.5px;font-weight:700;min-width:150px}
+.noa-check{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text-muted);cursor:pointer}
+.noa-check input{accent-color:var(--btn-dark-bg);width:14px;height:14px;cursor:pointer}
+.noa-check.checked{color:var(--success);font-weight:600}
+.progress-wrap{display:flex;align-items:center;gap:12px}
+.progress-track{flex:1;height:8px;border-radius:5px;background:var(--input-bg);overflow:hidden;border:1px solid var(--border-soft)}
+.progress-fill{height:100%;background:var(--success);border-radius:5px;transition:width .25s}
+.progress-pct{font-size:13px;font-weight:700;min-width:40px;text-align:right}
+details.section{background:var(--card);border:1px solid var(--border);border-radius:10px;margin-bottom:10px;overflow:hidden}
+details.section summary{list-style:none;cursor:pointer;padding:13px 18px;display:flex;align-items:center;gap:10px;font-size:13px;font-weight:700;color:var(--text)}
+details.section summary::-webkit-details-marker{display:none}
+details.section summary .chev{transition:transform .18s;color:var(--text-muted);font-size:11px}
+details.section[open] summary .chev{transform:rotate(90deg)}
+details.section summary .sec-count{margin-left:auto;font-size:11px;font-weight:600;color:var(--text-muted);background:var(--input-bg);border-radius:12px;padding:3px 10px}
+details.section summary .sec-count.all-done{color:var(--success);background:var(--status-done-bg)}
+.sec-body{padding:2px 18px 14px}
+.task-row{display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-top:1px solid var(--border-soft)}
+.task-row:first-child{border-top:none}
+.task-label{flex:1;font-size:12.5px;line-height:1.5;padding-top:6px}
+.task-controls{display:flex;flex-direction:column;gap:6px;align-items:flex-end;flex-shrink:0;width:230px}
+@media(max-width:640px){.task-row{flex-direction:column;gap:6px}.task-controls{width:100%;align-items:stretch}}
+.status-btn{font-size:11px;font-weight:700;border-radius:6px;padding:6px 10px;border:1px solid var(--border);cursor:pointer;background:var(--status-none-bg);color:var(--status-none-fg);font-family:inherit;white-space:nowrap;min-width:96px;text-align:center}
+.status-btn[data-status="1"]{background:var(--status-partly-bg);color:var(--status-partly-fg);border-color:transparent}
+.status-btn[data-status="2"]{background:var(--status-done-bg);color:var(--status-done-fg);border-color:transparent}
+.remarks-input{width:100%;font-size:11.5px;border:1px solid var(--border);border-radius:6px;padding:6px 9px;background:var(--input-bg);color:var(--text);font-family:inherit}
+.footer-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+.copy-msg{font-size:12px;color:var(--success);display:none;align-self:center}
+.empty-state{text-align:center;padding:60px 20px;color:var(--text-muted)}
+.hint-box{font-size:11px;color:var(--text-muted);line-height:1.5;background:var(--input-bg);border:1px solid var(--border-soft);border-radius:8px;padding:9px 11px;margin-bottom:10px}
+
+/* export modal */
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px}
+.modal-box{background:var(--card);border-radius:12px;max-width:560px;width:100%;max-height:82vh;display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--border)}
+.modal-head{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.modal-head h3{font-size:14px;font-weight:700}
+.modal-close{background:none;border:none;font-size:16px;cursor:pointer;color:var(--text-muted)}
+.modal-body{padding:14px 20px;overflow-y:auto;flex:1}
+.modal-foot{padding:14px 20px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end}
+.export-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--border-soft)}
+.export-row:first-child{border-top:none}
+.export-row input[type="checkbox"]{accent-color:var(--btn-dark-bg);width:15px;height:15px;flex-shrink:0}
+.export-row .er-label{flex:1;font-size:12px;line-height:1.35}
+.export-row .er-rate{font-size:11px;color:var(--text-muted);white-space:nowrap}
+.export-row input[type="text"]{width:110px;font-size:11.5px;border:1px solid var(--border);border-radius:6px;padding:5px 8px;background:var(--input-bg);color:var(--text);font-family:inherit;flex-shrink:0}
+.export-group-title{font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text-muted);margin:12px 0 2px;letter-spacing:.04em}
+.export-group-title:first-child{margin-top:0}
+
+/* auth gate */
+.auth-wrap{max-width:380px;margin:60px auto;padding:0 16px}
+.auth-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:28px 26px}
+.auth-title{font-size:16px;font-weight:700;margin-bottom:4px}
+.auth-sub{font-size:12px;color:var(--text-muted);margin-bottom:20px;line-height:1.5}
+.auth-err{font-size:12px;color:var(--err);margin-top:4px;min-height:16px}
+.auth-foot{font-size:11px;color:var(--text-muted);margin-top:16px;line-height:1.5;text-align:center}
+.auth-foot button{background:none;border:none;color:var(--text-muted);text-decoration:underline;cursor:pointer;font-family:inherit;font-size:11px;padding:0}
+.auth-foot button:hover{color:var(--text)}
+.logout-btn{display:flex;align-items:center;justify-content:center;width:34px;height:34px;border:0.5px solid var(--border);border-radius:8px;background:transparent;cursor:pointer;color:var(--text-muted);font-size:14px;flex-shrink:0}
+.logout-btn:hover{background:var(--input-bg);color:var(--text)}
+
+@media(max-width:600px){
+  .auth-wrap{margin:30px auto;padding:0 14px}
+  .auth-card{padding:22px 18px}
+  .wrap{padding:14px 12px 40px}
+  .card{padding:13px 14px}
+  .tab-bar-inner{padding:0 12px;gap:6px}
+  .tab-bar-brand{font-size:10.5px}
+  .autosave-msg{font-size:9.5px;max-width:90px;overflow:hidden;text-overflow:ellipsis}
+  .main-tab-bar-inner{padding:8px 12px}
+  .main-tab-btn{padding:8px 12px;font-size:11.5px}
+  .voyage-bar-inner,.cargo-bar-inner{padding:8px 12px}
+  .voyage-pill,.cargo-pill{padding:8px 12px;font-size:12px}
+  details.section summary{padding:12px 14px;font-size:12.5px}
+  .sec-body{padding:2px 14px 12px}
+  .status-btn{min-width:0;flex:1;padding:9px 8px}
+  .noa-row{flex-direction:column;align-items:flex-start;gap:8px}
+  .footer-actions{flex-direction:column}
+  .footer-actions .btn-primary,.footer-actions .btn-ghost{width:100%}
+  .board-toolbar{flex-direction:column;align-items:stretch}
+  .export-row{flex-wrap:wrap}
+  .export-row input[type="text"]{width:100%}
+}
+</style>
+</head>
+<body>
+
+<div class="tab-bar">
+  <div class="tab-bar-inner">
+    <div class="tab-bar-brand">⚓ <b>Chayka Group Logistic (CGL) Indications</b></div>
+    <span class="autosave-msg" id="autosave-msg">✓ saved</span>
+    <div class="tab-spacer"></div>
+    <button class="logout-btn" id="refresh-btn" onclick="refreshFromServer()" title="Refresh from server" style="display:none">🔄</button>
+    <button class="logout-btn" id="logout-btn" onclick="logout()" title="Log out" style="display:none">🔒</button>
+    <button class="theme-toggle" onclick="toggleTheme()" id="theme-btn" title="Toggle theme">🌙</button>
+  </div>
+</div>
+
+<div class="main-tab-bar" id="main-tab-bar">
+  <div class="main-tab-bar-inner">
+    <button class="main-tab-btn" id="tab-board-btn" onclick="setMainTab('board')">📊 Indications</button>
+    <button class="main-tab-btn" id="tab-checklist-btn" onclick="setMainTab('checklist')">✅ Voyage Checklist</button>
+  </div>
+</div>
+
+<div class="cargo-bar" id="cargo-bar" style="display:none">
+  <div class="cargo-bar-inner" id="cargo-pills"></div>
+</div>
+
+<div class="voyage-bar" id="voyage-bar" style="display:none">
+  <div class="voyage-bar-inner" id="voyage-pills"></div>
+</div>
+
+<div class="wrap" id="main-wrap"></div>
+
+<script>
+/* ══════════════════════════════════════════════════════════
+   SHARED: state, safe storage, theming
+   ══════════════════════════════════════════════════════════ */
+const memoryStore={};
+const safeStorage={
+  getItem(k){try{return window.localStorage.getItem(k);}catch(e){return Object.prototype.hasOwnProperty.call(memoryStore,k)?memoryStore[k]:null;}},
+  setItem(k,v){try{window.localStorage.setItem(k,v);}catch(e){memoryStore[k]=v;}}
+};
+function todayStr(){
+  const d=new Date();
+  return String(d.getDate()).padStart(2,'0')+'.'+String(d.getMonth()+1).padStart(2,'0')+'.'+String(d.getFullYear()).slice(2);
+}
+function escapeHtml(s){return (s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+/* ══════════════════════════════════════════════════════════
+   SERVER API — CGL Indications backend (FastAPI + SQLite)
+   All board + checklist data now lives on the server, shared
+   across everyone who signs in. Only the theme preference and
+   the personal Anthropic API key (for the AI panel) stay local
+   to this browser — those aren't shared team data.
+   ══════════════════════════════════════════════════════════ */
+const SERVER_API_BASE='https://94-136-184-214.sslip.io';
+
+function getToken(){ return safeStorage.getItem('cgl_token')||''; }
+function setToken(t){ safeStorage.setItem('cgl_token', t||''); }
+
+async function apiRequest(method, path, body){
+  const headers={'Content-Type':'application/json'};
+  const token=getToken();
+  if(token) headers['Authorization']='Bearer '+token;
+  let resp;
+  try{
+    resp=await fetch(SERVER_API_BASE+path, {method, headers, body: body!==undefined?JSON.stringify(body):undefined});
+  }catch(networkErr){
+    throw new Error('Cannot reach the server — check your connection.');
+  }
+  if(resp.status===401){
+    setToken('');
+    showAuthGate('Your session has ended — please sign in again.');
+    throw new Error('Session expired');
+  }
+  if(!resp.ok){
+    let detail='';
+    try{ const j=await resp.json(); detail=j.detail||''; }catch(e){}
+    throw new Error('Server error '+resp.status+(detail?': '+detail:''));
+  }
+  return resp.json();
+}
+
+let saveTimer=null;
+function saveState(){
+  const m=document.getElementById('autosave-msg');
+  m.textContent='saving…'; m.style.color='var(--text-muted)'; m.classList.add('show');
+  clearTimeout(saveTimer);
+  saveTimer=setTimeout(async ()=>{
+    try{
+      await apiRequest('PUT','/api/state', {value: state});
+      m.textContent='✓ saved'; m.style.color='var(--success)';
+    }catch(err){
+      if(err.message!=='Session expired'){
+        m.textContent='⚠ save failed: '+err.message; m.style.color='var(--warn)';
+      }
+    }
+    setTimeout(()=>m.classList.remove('show'),1800);
+  }, 500);
+}
+
+/* ══════════════════════════════════════════════════════════
+   AUTH GATE — real server-backed login.
+   Accounts are created only via manage_users.py on the server
+   (no public sign-up here). Sessions last 90 days server-side;
+   there's no refresh flow — once expired, just sign in again.
+   ══════════════════════════════════════════════════════════ */
+function logout(){
+  apiRequest('POST','/api/logout').catch(()=>{});
+  setToken('');
+  document.getElementById('logout-btn').style.display='none';
+  document.getElementById('refresh-btn').style.display='none';
+  showAuthGate();
+}
+
+function showAuthGate(message){
+  document.getElementById('main-tab-bar').style.display='none';
+  document.getElementById('cargo-bar').style.display='none';
+  document.getElementById('voyage-bar').style.display='none';
+  document.getElementById('logout-btn').style.display='none';
+  document.getElementById('refresh-btn').style.display='none';
+  renderSignIn(message);
+}
+
+function renderSignIn(message){
+  const wrap=document.getElementById('main-wrap');
+  wrap.innerHTML=`<div class="auth-wrap"><div class="auth-card">
+    <div class="auth-title">Sign in</div>
+    <div class="auth-sub">Chayka Group Logistic (CGL) Indications${message?'<br><span style="color:var(--warn)">'+escapeHtml(message)+'</span>':''}</div>
+    <div class="field"><label>Username</label><input type="text" id="login-user" autocomplete="username"></div>
+    <div class="field"><label>Password</label><input type="password" id="login-pass" autocomplete="current-password"></div>
+    <div class="auth-err" id="login-err"></div>
+    <button class="btn-primary" id="login-submit-btn" style="margin-top:6px">Sign in</button>
+    <div class="auth-foot">No account? Ask your admin — accounts are created directly on the server, there's no self sign-up.</div>
+  </div></div>`;
+  const doLogin=async ()=>{
+    const u=document.getElementById('login-user').value.trim();
+    const p=document.getElementById('login-pass').value;
+    const errEl=document.getElementById('login-err');
+    const btn=document.getElementById('login-submit-btn');
+    if(!u || !p){ errEl.textContent='Enter both username and password.'; return; }
+    btn.disabled=true; errEl.textContent='';
+    try{
+      const resp=await fetch(SERVER_API_BASE+'/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})});
+      if(!resp.ok){
+        let detail='Invalid username or password';
+        try{ const j=await resp.json(); if(j.detail) detail=j.detail; }catch(e){}
+        errEl.textContent=detail;
+        btn.disabled=false;
+        return;
+      }
+      const data=await resp.json();
+      setToken(data.token);
+      await loadRemoteStateAndRender();
+    }catch(e){
+      errEl.textContent='Cannot reach the server — check your connection.';
+    }
+    btn.disabled=false;
+  };
+  document.getElementById('login-submit-btn').onclick=doLogin;
+  document.getElementById('login-pass').addEventListener('keydown',e=>{ if(e.key==='Enter') doLogin(); });
+}
+
+function onAuthSuccess(){
+  document.getElementById('main-tab-bar').style.display='';
+  document.getElementById('logout-btn').style.display='';
+  document.getElementById('refresh-btn').style.display='';
+  render();
+}
+
+async function loadRemoteStateAndRender(){
+  try{
+    const res=await apiRequest('GET','/api/state');
+    if(res.value){
+      state=Object.assign({activeMainTab:'board', voyages:[], activeId:null, board:null}, res.value);
+    }else{
+      state={activeMainTab:'board', voyages:[], activeId:null, board:null};
+    }
+    normalizeState();
+    onAuthSuccess();
+  }catch(err){
+    if(err.message!=='Session expired'){
+      const wrap=document.getElementById('main-wrap');
+      wrap.innerHTML=`<div class="auth-wrap"><div class="auth-card">
+        <div class="auth-title">Could not load data</div>
+        <div class="auth-sub" style="color:var(--err)">${escapeHtml(err.message)}</div>
+        <button class="btn-primary" id="retry-load-btn" style="margin-top:6px">Try again</button>
+      </div></div>`;
+      document.getElementById('retry-load-btn').onclick=loadRemoteStateAndRender;
+    }
+  }
+}
+
+async function refreshFromServer(){
+  const btn=document.getElementById('refresh-btn');
+  btn.disabled=true;
+  try{
+    const res=await apiRequest('GET','/api/state');
+    if(res.value){
+      state=Object.assign({activeMainTab:state.activeMainTab, voyages:[], activeId:null, board:null}, res.value);
+      normalizeState();
+      render();
+    }
+  }catch(e){ /* apiRequest already surfaces auth errors via showAuthGate */ }
+  btn.disabled=false;
+}
+
+/* ══════════════════════════════════════════════════════════
+   SEED DATA — Freight indications board
+   Sources: STRIBROK/ISM Report/ARMADA Chartering analysis (wk 34-35, 02.09.26),
+   EMA Ship Management weekly (week 36, 31.08.26), STRIBROK freight report (week 35),
+   live cargo/orders list, internal fixture log, broker's prior notes.
+   ══════════════════════════════════════════════════════════ */
+function seedBoard(){
+  return {
+    activeCargo:'wheat',
+    activeDirection:'outbound',
+    cargoData:{
+      wheat:{label:'Wheat (SF ~47)', routes:[
+        {id:'w1', label:'Danube (Izmail) → Marmara', direction:'outbound', low:78, high:82, unit:'$/mt',
+          ownersIdeas:[{text:'3,000t $80 / 6,000t $78–82 (up +53–70% since 20.08)', source:'STRIBROK+ISM Report+ARMADA, combined analysis', date:'02.09.26'}],
+          charterersIdeas:[
+            {text:'Izmail/Reni → Samsun/Marmara $53 (2,700–3,300t)', source:'MHP Food Trading LLC, cargo order', date:'19.08.26'},
+            {text:'Izmail → Marmara/Egypt $65 (5,000–10,000t)', source:'Katana Trade LTD, cargo order', date:'04.08.26'},
+            {text:'Danube Ports → Marmara $65–67 (5,000mts coaster)', source:'EMA Ship Management, week 36', date:'31.08.26'}
+          ], updatedAt:'02.09.26'},
+        {id:'w2', label:'Danube → Egypt Med / Mersin / Iskenderun', direction:'outbound', low:93, high:98, unit:'$/mt',
+          ownersIdeas:[{text:'3,000t $85 / 6,000t $93–98 (up +41–63% since mid-July)', source:'STRIBROK+ISM Report+ARMADA, combined analysis', date:'02.09.26'}],
+          charterersIdeas:[
+            {text:'Izmail → Mersin "70+" (4,000–8,000t)', source:'Hermes-Trading LLC, cargo order', date:'28.08.26'},
+            {text:'Izmail/Galati → Egypt Med $67', source:'Hermes-Trading LLC, cargo order', date:'20.08.26'},
+            {text:'Izmail/Reni → Tartus/Tripoli/Egypt $82 (5,400–6,600t)', source:'AGROTRADING/AGROFOND, cargo order', date:'21.08.26'}
+          ], updatedAt:'02.09.26'},
+        {id:'w3', label:'Danube → Greece (EC/WC)', direction:'outbound', low:83, high:91, unit:'$/mt',
+          ownersIdeas:[{text:'EC Greece $83–87 / WC Greece $87–91', source:'STRIBROK+ISM Report+ARMADA, combined analysis', date:'02.09.26'}],
+          charterersIdeas:[{text:'Izmail/Reni → Greece: ECG $64 / WCG $71 (2,700–3,300t)', source:'MHP Food Trading LLC, cargo order', date:'19.08.26'}],
+          updatedAt:'02.09.26'},
+        {id:'w4', label:'Danube → Cyprus / Famagusta', direction:'outbound', low:93, high:98, unit:'$/mt',
+          ownersIdeas:[{text:'$93–98', source:'STRIBROK+ISM Report+ARMADA, combined analysis', date:'02.09.26'}], charterersIdeas:[], updatedAt:'02.09.26'},
+        {id:'w5', label:'Danube → Lebanon / Syria', direction:'outbound', low:93, high:98, unit:'$/mt',
+          ownersIdeas:[{text:'$93–98', source:'STRIBROK+ISM Report+ARMADA, combined analysis', date:'02.09.26'}], charterersIdeas:[], updatedAt:'02.09.26'},
+        {id:'w6', label:'Danube → Tunisia', direction:'outbound', low:102, high:108, unit:'$/mt',
+          ownersIdeas:[{text:'$102–108', source:'STRIBROK+ISM Report+ARMADA, combined analysis', date:'02.09.26'}], charterersIdeas:[], updatedAt:'02.09.26'},
+        {id:'w7', label:'Danube → EC Italy', direction:'outbound', low:109, high:116, unit:'$/mt',
+          ownersIdeas:[{text:'$109–116', source:'STRIBROK+ISM Report+ARMADA, combined analysis', date:'02.09.26'}], charterersIdeas:[], updatedAt:'02.09.26'}
+      ]},
+      corn:{label:'Corn (SF ~49-52)', routes:[
+        {id:'c1', label:'Danube (Izmail) → Cyprus (Larnaca)', direction:'outbound', low:82, high:82, unit:'$/mt',
+          ownersIdeas:[], charterersIdeas:[{text:'Izmail → Larnaca $82 (5,400–6,600t)', source:'AGROTRADING/AGROFOND, cargo order', date:'24.08.26'}],
+          updatedAt:'24.08.26'}
+      ]},
+      fertilizers:{label:'Fertilizers (big bags)', routes:[
+        {id:'f1', label:'East Mediterranean → Danube (Ukraine)', direction:'backhaul', low:75, high:77, unit:'$/mt',
+          ownersIdeas:[{text:'3,000mt, non-DG, import to Ukraine (Danube discharging)', source:'STRIBROK Freight Report, week 35', date:'wk35/26'}],
+          charterersIdeas:[], updatedAt:'wk35/26'},
+        {id:'f2', label:'Egypt Mediterranean → Danube (Ukraine)', direction:'backhaul', low:80, high:82, unit:'$/mt',
+          ownersIdeas:[{text:'3,000mt, non-DG, import to Ukraine (Danube discharging)', source:'STRIBROK Freight Report, week 35', date:'wk35/26'}],
+          charterersIdeas:[], updatedAt:'wk35/26'},
+        {id:'f3', label:'Trabzon (Turkey) → Reni (backhaul)', direction:'backhaul', low:43, high:43, unit:'$/mt',
+          ownersIdeas:[], charterersIdeas:[{text:'Real fixture, 4,000t fertilisers in bb', source:'UKRMINKHIM', date:'13.08.26'}],
+          updatedAt:'13.08.26'}
+      ]},
+      salt:{label:'Salt (big bags)', routes:[
+        {id:'s1', label:'El Arish (Egypt) → Izmail (backhaul)', direction:'backhaul', low:28, high:28, unit:'$/mt',
+          ownersIdeas:[], charterersIdeas:[{text:'5,000–6,000t, sf47', source:'AGROTRADING/AGROFOND, cargo order', date:'02.09.26'}],
+          updatedAt:'02.09.26'},
+        {id:'s2', label:'Alexandria (Egypt) → Izmail (backhaul)', direction:'backhaul', low:28, high:34, unit:'$/mt',
+          ownersIdeas:[{text:'Backhaul logic — owners returning in ballast quote well below a dedicated voyage calc', source:'internal broker note', date:'01.09.26'}],
+          charterersIdeas:[{text:'6,000–7,000t, salt in big-bags', source:'internal reference', date:'01.09.26'}],
+          updatedAt:'01.09.26'}
+      ]}
+    },
+    notes:[],
+    aiHistory:[]
+  };
+}
+
+/* ══════════════════════════════════════════════════════════
+   Checklist task definitions
+   ══════════════════════════════════════════════════════════ */
+const SECTIONS = [
+  {id:'general', title:'General / Freight', tasks:[
+    ['g1','FREIGHT IDEA AGREED? RECAP RCVD? DATE………'],['g2','BROKER DETAILS?'],['g3','CHARTERER DETAILS?'],
+    ['g4','VOY. INSTRCTN SENT TO MASTER? CNFRMD?'],['g5','CALCT VOY DISTANCE, SEA DAYS +10% (NETPASS DISTNC)'],
+    ['g6','CHECK WEATHER CONDITION'],['g7','NEED CHANNEL AGENT? CHANNEL NAME…(KEK)……..'],['g8','TURK. STRAIT AGENT? SP1 SENT?'],
+    ['g9','NEED BUNKER SUPPLY? IFO………MGO………LO……'],['g10','ESTIMATED BUNKER DATE ……………….TIME…………'],
+    ['g11','BUNKER BARGE DETAILS RCVD?'],['g12','BUNKER DLVRY PLACE. ROAD…….. BERTH…………'],
+    ['g13','BUNKER RECEIPTS + FINAL INVOICE - RCVD?'],['g14','NEED TECH. SUPPLY? PROVISION?..............FW?.......'],
+    ['g15','NEED CREW CHANGE? prsns PORT……………DATE………'],
+    ['g16','PRE-LOADING SURVEY/TALLY ORDERED? (IF STEEL PRODUCTS – P&I CARGO); COMPANY+PIC?'],
+    ['g17','ALRS / SOPEP / MSD'],['g18','HOLDS TO BE SEALED BY? REPORT RCVD?'],['g19','DRAFT SURVEY PERFORMER? QTTY?'],
+    ['g20','CASH TO MASTER: HLDS CLEANG, REPRESENT AT PORT, CHNNL PASSGE (MASTER REMUNERATION): TTL = ………. CONVENIENT PORT/CHNL?…………'],
+    ['g21','CREW WAGE: DLVRY PLACE? DATE………….SUM………']
+  ]},
+  {id:'loadprearr', title:'Load Port — Preparation', tasks:[
+    ['lp1','(LOAD PORT) AGENT APPROVED BY CHARTERER?'],['lp2','AGENT DETAILS RECEIVED?'],
+    ['lp3','PORT RSTRCTNS? LENGTH, MAX DRGHT, AIR DRGHT, TIDES? ETC'],['lp4','PROFORMA D/A RCVD? AGREED?'],
+    ['lp5','TUG ASSISTANCE COMPULSORY? (BOW THRUSTER CERTIFICATE)'],['lp6','CASH TO MASTER? AMOUNT= ………'],
+    ['lp7','PROFORMA D/A REMITTED? (LOAD PORT) DATE…………………'],['lp8','PRE-ARRIVALS RCVD FM LP AGENT?'],
+    ['lp9','BERTHING+LOADING+SAILING PROSPECTS? ALWS MONITORING'],['lp10','LOAD P.AGENT CNFRMD - PREARRIVALS - ALL OK!']
+  ]},
+  {id:'loadops', title:'Load Port — Operations', tasks:[
+    ['lo1','DEBALLASTING EXPENSES / EXCEEDED DRAUGHT ON DEPARTURE? SUM USD………'],
+    ['lo2','QTTY TO DISCHARGE AT L.P.: GARBAGE………. SLUDGE……….…..BILGE…………………SEWAGE……..'],
+    ['lo3','DRAFTS B/Ls + CARGO DOC\'S: RECEIVED AND CONFIRMED!!!'],
+    ['lo4','NOR TENDERED? DATE/TIME ………….. SHOULD BE ACCEPTED BY AGENT'],['lo5','MASTER CARGO REMARKS?'],
+    ['lo6','MASTER DRAFT SURVEY: CARGO QTY……..'],['lo7','SHORE SCALE CARGO QTTY…………'],['lo8','B/L WEIGHT?...............'],
+    ['lo9','DID WE RECEIVE SOF+NOR SCAN+B/L COPY+CARGO DOC\'S'],['lo10','NUMBER OF ORIGINAL B/Ls ON BOARD ………'],
+    ['lo11','DEPARTURE DRAUGHTS(m): FW…………. AFT………… MID…..'],
+    ['lo12','FREIGHT INVOICE & DEMURRAGE, IF ANY, SENT TO CHARTERER?'],['lo13','FREIGHT RCVD? OB/L RELEASED?'],
+    ['lo14','REQUEST MUTUAL SETTLEMENTS FM AGENT (ADVISE OUR BANK DETAILS + POST ADDRESS, IF ANY)'],
+    ['lo15','FINAL D/A RECEIVED (LOAD PORT)?']
+  ]},
+  {id:'passage', title:'Passage to Discharge Port', tasks:[
+    ['p1','NEED CHANNEL AGENT? CHANNEL NAME……(KEK)……..'],['p2','TURKISH STRAITS AGENT? SP1 SENT?'],
+    ['p3','NEED BUNKER SUPPLY? IFO………MGO………LO……'],['p4','ESTIMATED BUNKER DATE ……………….TIME…………'],
+    ['p5','BUNKER BARGE DETAILS RCVD?'],['p6','BUNKER DLVRY PLACE. ROAD…….. BERTH…………'],
+    ['p7','DID WE RECEIVE BUNKER RECEIPTS + FINAL INVOICE?'],['p8','NEED TECH. SUPPLY? PROVISION?..............FW?.......'],
+    ['p9','NEED CREW CHANGE? prsns PORT………………DATE………']
+  ]},
+  {id:'dischprearr', title:'Discharge Port — Preparation', tasks:[
+    ['dp1','(DISCH PORT) AGENT APPROVED BY CHARTERER?'],['dp2','AGENT DETAILS RECEIVED?'],
+    ['dp3','PORT RSTRCTNS? LENGTH, MAX DRGHT, AIR DRGHT, TIDES? ETC'],['dp4','PROFORMA D/A RCVD? AGREED?'],
+    ['dp5','TUG ASSISTANCE COMPULSORY? (BOW THRUSTER CERTIFICATE)'],['dp6','CASH TO MASTER? AMOUNT= ………'],
+    ['dp7','PROFORMA D/A REMITTED? (DISCHARGE PORT)'],['dp8','PRE-ARRIVALS RCVD FM DP AGENT?'],
+    ['dp9','DISCHRG P.AGENT CNFRMD - PREARRIVALS - ALL OK!'],['dp10','CARGO DOCS SENT TO DISCHARGING PORT?']
+  ]},
+  {id:'dischops', title:'Discharge Port — Operations', tasks:[
+    ['do1','BERTHING+DSCHRG+SAILING PROSPECTS? ALWS MONITORING'],
+    ['do2','WHAT WILL BE PRESENTED ON DISCHARGING? (LOI OR OB/L)?'],['do3','CHARTERER PERMIT DISCHARGING?'],
+    ['do4','HOLDS UNSEALING PERFORMERS? (MASTER+AGENT+RECEIVER REPRESENTATIVE)'],
+    ['do5','NOR TENDERED? DATE/TIME ………….. SHOULD BE ACCEPTED BY AGENT'],['do6','DRAFT SURVEY PERFORMER?'],
+    ['do7','CRGO QTY DETERMINATION: SHORE SCALE? DRAFT SURVEY?'],['do8','DID WE RECEIVE SOF + NOR'],
+    ['do9','REQUEST MUTUAL SETTLEMENTS FM DISCHRG PORT AGENT (ADVISE OUR BANK DETAILS + POST ADDRESS)'],
+    ['do10','FINAL D/A RECEIVED (DISCHARGING PORT)']
+  ]},
+  {id:'next', title:'Next Voyage / Departure', tasks:[
+    ['n1','NEXT VOY. INSTRCTN MASTER RCVD? CNFRMD?'],['n2','DEPARTURE DRAUGHTS(m): FW…………. AFT………… MID…..'],
+    ['n3','TURKISH STRAITS AGENT? SP1 SENT?'],['n4','CHECK WEATHER CONDITION'],
+    ['n5','CHECK VESSELS DECLARED FOR TURKISH STRAITS PASSAGE (kiyiemniyeti.gov.tr)']
+  ]}
+];
+const NOA_STAGES = [['5','5 days'],['3','3 days'],['2','2 days'],['1','1 day'],['12h','12 hrs'],['6h','6 hrs']];
+
+/* ══════════════════════════════════════════════════════════
+   STATE
+   ══════════════════════════════════════════════════════════ */
+let state={activeMainTab:'board', voyages:[], activeId:null, board:null};
+
+function newVoyageObj(){
+  const id='v'+Date.now()+Math.floor(Math.random()*1000);
+  const tasks={};
+  SECTIONS.forEach(s=>s.tasks.forEach(([tid])=>{tasks[tid]={status:0,remarks:''}}));
+  return {id, header:{cpdate:'',cargo:'',mv:'',voyage:''},
+    load:{eta:'',port:'',agent:'',etb:'',ets:'',ttlstay:'',rate:'',lc:'',extsn:''},
+    disch:{eta:'',port:'',agent:'',etb:'',ets:'',ttlstay:'',rate:''},
+    noaLoad:{'5':false,'3':false,'2':false,'1':false,'12h':false,'6h':false},
+    noaDisch:{'5':false,'3':false,'2':false,'1':false,'12h':false,'6h':false}, tasks};
+}
+
+function normalizeState(){
+  if(!Array.isArray(state.voyages)) state.voyages=[];
+  state.voyages.forEach(v=>{
+    if(!v.tasks) v.tasks={};
+    SECTIONS.forEach(s=>s.tasks.forEach(([tid])=>{if(!v.tasks[tid]) v.tasks[tid]={status:0,remarks:''};}));
+    if(!v.noaLoad) v.noaLoad={'5':false,'3':false,'2':false,'1':false,'12h':false,'6h':false};
+    if(!v.noaDisch) v.noaDisch={'5':false,'3':false,'2':false,'1':false,'12h':false,'6h':false};
+  });
+  if(!state.voyages.length) state.voyages.push(newVoyageObj());
+  if(!state.activeId || !state.voyages.find(v=>v.id===state.activeId)) state.activeId=state.voyages[0].id;
+  if(!state.board || !state.board.cargoData) state.board=seedBoard();
+  if(!state.board.activeDirection) state.board.activeDirection='outbound';
+  if(!state.board.notes) state.board.notes=[];
+  if(!state.board.aiHistory) state.board.aiHistory=[];
+  // defensive migration: ensure every route has a direction
+  Object.values(state.board.cargoData).forEach(c=>{
+    (c.routes||[]).forEach(r=>{ if(!r.direction) r.direction='outbound'; });
+  });
+  if(!state.activeMainTab) state.activeMainTab='board';
+}
+function activeVoyage(){return state.voyages.find(v=>v.id===state.activeId);}
+
+/* ══════════════════════════════════════════════════════════
+   MAIN TAB SWITCH
+   ══════════════════════════════════════════════════════════ */
+function setMainTab(tab){
+  state.activeMainTab=tab;
+  saveState();
+  render();
+}
+
+function render(){
+  document.getElementById('tab-board-btn').classList.toggle('active', state.activeMainTab==='board');
+  document.getElementById('tab-checklist-btn').classList.toggle('active', state.activeMainTab==='checklist');
+  document.getElementById('cargo-bar').style.display = state.activeMainTab==='board' ? '' : 'none';
+  document.getElementById('voyage-bar').style.display = state.activeMainTab==='checklist' ? '' : 'none';
+  if(state.activeMainTab==='board'){ renderCargoPills(); renderBoardMain(); }
+  else { renderVoyagePills(); renderChecklistMain(); }
+}
+
+/* ══════════════════════════════════════════════════════════
+   BOARD (INDICATIONS)
+   ══════════════════════════════════════════════════════════ */
+function activeCargoObj(){
+  return state.board.cargoData[state.board.activeCargo] || null;
+}
+function visibleRoutes(cargo){
+  return cargo.routes.filter(r=>r.direction===state.board.activeDirection);
+}
+
+function renderCargoPills(){
+  const wrap=document.getElementById('cargo-pills');
+  wrap.innerHTML='';
+  Object.keys(state.board.cargoData).forEach(cid=>{
+    const c=state.board.cargoData[cid];
+    const pill=document.createElement('div');
+    pill.className='cargo-pill'+(cid===state.board.activeCargo?' active':'');
+    pill.innerHTML=`<span>${escapeHtml(c.label)}</span><span class="del-x" title="Delete cargo">✕</span>`;
+    pill.querySelector('span').onclick=()=>{state.board.activeCargo=cid;saveState();render();};
+    pill.querySelector('.del-x').onclick=(e)=>{
+      e.stopPropagation();
+      if(Object.keys(state.board.cargoData).length===1){alert('Cannot delete the only cargo');return;}
+      if(!confirm('Delete cargo "'+c.label+'" with all its directions?'))return;
+      delete state.board.cargoData[cid];
+      if(state.board.activeCargo===cid) state.board.activeCargo=Object.keys(state.board.cargoData)[0];
+      saveState();render();
+    };
+    wrap.appendChild(pill);
+  });
+  const addBtn=document.createElement('button');
+  addBtn.className='add-cargo-btn';
+  addBtn.textContent='＋ Cargo';
+  addBtn.onclick=()=>{
+    const name=prompt('Cargo name (e.g. Soybean, Barley, Meal):','');
+    if(name===null||name===undefined||!name.trim())return;
+    const id='cg'+Date.now();
+    state.board.cargoData[id]={label:name.trim(), routes:[]};
+    state.board.activeCargo=id;
+    saveState();render();
+  };
+  wrap.appendChild(addBtn);
+}
+
+function ideaHtml(list,cls,titleText){
+  let inner='';
+  if(!list || !list.length){
+    inner='<div class="idea-empty">no data</div>';
+  }else{
+    inner=list.map(it=>`<div class="idea-item">${escapeHtml(it.text)}<span class="src">${escapeHtml(it.source||'')}${it.date?' · '+escapeHtml(it.date):''}</span></div>`).join('');
+  }
+  return `<div class="idea-block"><div class="idea-block-title ${cls}">${titleText}</div>${inner}</div>`;
+}
+
+function buildCardsHtml(routes){
+  let cardsHtml=routes.map(r=>`
+    <div class="indication-card" data-rid="${r.id}">
+      <div class="indication-route">${escapeHtml(r.label)}</div>
+      <div class="indication-big" data-rid="${r.id}" title="Click to edit range">${r.low===r.high? r.low : r.low+'–'+r.high}<span class="unit">${escapeHtml(r.unit||'$/mt')}</span></div>
+      <div class="indication-updated">updated: ${escapeHtml(r.updatedAt||'-')}</div>
+      ${ideaHtml(r.ownersIdeas,'owners','Owners idea')}
+      <button class="idea-add-btn" data-rid="${r.id}" data-kind="ownersIdeas">＋ add owners idea</button>
+      ${ideaHtml(r.charterersIdeas,'charterers','Charterers idea')}
+      <button class="idea-add-btn" data-rid="${r.id}" data-kind="charterersIdeas">＋ add charterers idea</button>
+      <button class="card-del-route" data-rid="${r.id}">Delete direction</button>
+    </div>`).join('');
+  cardsHtml+=`<div class="add-route-card" id="add-route-card">＋ Add direction</div>`;
+  return cardsHtml;
+}
+
+function renderBoardMain(){
+  const wrap=document.getElementById('main-wrap');
+  const cargo=activeCargoObj();
+  if(!cargo){wrap.innerHTML='<div class="empty-state">No data for this cargo</div>';return;}
+  const routes=visibleRoutes(cargo);
+
+  wrap.innerHTML=`
+    <div class="board-layout">
+      <div>
+        <div class="hint-box">Data below is sourced from STRIBROK / ISM Report / ARMADA Chartering, EMA Ship Management and the internal cargo-order log (as of 02.09.26). Click a number to edit it manually, or use the AI panel on the right to recalculate using live mail and web data.</div>
+        <div class="board-toolbar">
+          <div class="direction-toggle">
+            <button class="direction-btn" data-dir="outbound" id="dir-outbound-btn">Outbound</button>
+            <button class="direction-btn" data-dir="backhaul" id="dir-backhaul-btn">Backhaul</button>
+          </div>
+          <button class="export-btn" id="export-pdf-btn">📄 Export PDF</button>
+        </div>
+        <div class="indication-grid" id="indication-grid">${buildCardsHtml(routes)}</div>
+      </div>
+      <div>
+        <div class="card ai-panel">
+          <p class="section-title">Manual note</p>
+          <textarea class="ai-textarea" id="note-input" placeholder="E.g.: yesterday MHP fixed MV MARIA S at $100 ex Reni to Lebanon — FYI"></textarea>
+          <div style="margin-top:8px"><button class="btn-ghost" id="save-note-btn" style="width:100%">Save note</button></div>
+          <div id="notes-list" style="margin-top:10px;max-height:160px;overflow-y:auto"></div>
+        </div>
+        <div class="card ai-panel" style="margin-top:14px">
+          <div class="ai-panel-head">
+            <p class="section-title">AI request — recalculate indication</p>
+            <button class="gear-btn" id="ai-settings-btn" title="API key settings">⚙</button>
+          </div>
+          <textarea class="ai-textarea" id="ai-input" placeholder="E.g.: recalculate the Danube-Marmara rate using this week's emails"></textarea>
+          <div class="ai-toggle-row">
+            <label class="ai-toggle"><input type="checkbox" id="ai-use-mail" checked> mail (Gmail)</label>
+            <label class="ai-toggle"><input type="checkbox" id="ai-use-web" checked> web search</label>
+          </div>
+          <button class="btn-primary" id="ai-run-btn">🔄 Recalculate</button>
+          <div class="ai-status" id="ai-status"></div>
+          <div id="ai-summary-wrap"></div>
+          <div class="ai-key-status" id="ai-key-status"></div>
+          <div id="ai-history" style="margin-top:10px;max-height:200px;overflow-y:auto"></div>
+        </div>
+      </div>
+    </div>`;
+
+  attachBoardHandlers();
+  updateDirectionButtons();
+  renderNotesList();
+  renderAiHistory();
+  updateKeyStatus();
+}
+
+function updateDirectionButtons(){
+  const ob=document.getElementById('dir-outbound-btn');
+  const bh=document.getElementById('dir-backhaul-btn');
+  if(ob) ob.classList.toggle('active', state.board.activeDirection==='outbound');
+  if(bh) bh.classList.toggle('active', state.board.activeDirection==='backhaul');
+}
+
+function attachBoardHandlers(){
+  const obBtn=document.getElementById('dir-outbound-btn');
+  const bhBtn=document.getElementById('dir-backhaul-btn');
+  if(obBtn) obBtn.onclick=()=>{state.board.activeDirection='outbound';saveState();renderIndicationGridOnly();updateDirectionButtons();};
+  if(bhBtn) bhBtn.onclick=()=>{state.board.activeDirection='backhaul';saveState();renderIndicationGridOnly();updateDirectionButtons();};
+  const exportBtn=document.getElementById('export-pdf-btn');
+  if(exportBtn) exportBtn.onclick=openExportModal;
+
+  document.querySelectorAll('.indication-big').forEach(el=>{
+    el.addEventListener('click',()=>{
+      const rid=el.dataset.rid;
+      const cargo=activeCargoObj();
+      const route=cargo.routes.find(r=>r.id===rid);
+      const val=prompt('Rate range, $/mt (e.g. 78-82 or just 80):', route.low===route.high?String(route.low):route.low+'-'+route.high);
+      if(val===null||val===undefined)return;
+      const nums=val.match(/[\d.]+/g);
+      if(!nums || !nums.length){alert('Could not parse a number');return;}
+      route.low=parseFloat(nums[0]);
+      route.high=nums.length>1?parseFloat(nums[1]):route.low;
+      route.updatedAt=todayStr();
+      saveState();renderIndicationGridOnly();
+    });
+  });
+  document.querySelectorAll('.idea-add-btn').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const rid=btn.dataset.rid, kind=btn.dataset.kind;
+      const cargo=activeCargoObj();
+      const route=cargo.routes.find(r=>r.id===rid);
+      const raw=prompt('Enter note as: text; source; date\\n(source and date are optional)','');
+      if(raw===null||raw===undefined||!raw.trim())return;
+      const parts=raw.split(';').map(s=>s.trim());
+      route[kind].unshift({text:parts[0]||raw.trim(), source:parts[1]||'', date:parts[2]||todayStr()});
+      route[kind]=route[kind].slice(0,6);
+      route.updatedAt=todayStr();
+      saveState();renderIndicationGridOnly();
+    });
+  });
+  document.querySelectorAll('.card-del-route').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const rid=btn.dataset.rid;
+      const cargo=activeCargoObj();
+      if(!confirm('Delete this direction?'))return;
+      cargo.routes=cargo.routes.filter(r=>r.id!==rid);
+      saveState();renderIndicationGridOnly();
+    });
+  });
+  const addRouteCard=document.getElementById('add-route-card');
+  if(addRouteCard) addRouteCard.onclick=()=>{
+    const label=prompt('Direction name (e.g. Danube → Marmara):','');
+    if(label===null||label===undefined||!label.trim())return;
+    const val=prompt('Initial rate range, $/mt (e.g. 78-82):','');
+    const nums=(val||'').match(/[\d.]+/g);
+    const low=nums&&nums.length?parseFloat(nums[0]):0;
+    const high=nums&&nums.length>1?parseFloat(nums[1]):low;
+    const cargo=activeCargoObj();
+    cargo.routes.push({id:'r'+Date.now(), label:label.trim(), direction:state.board.activeDirection, low, high, unit:'$/mt', ownersIdeas:[], charterersIdeas:[], updatedAt:todayStr()});
+    saveState();renderIndicationGridOnly();
+  };
+  const saveNoteBtn=document.getElementById('save-note-btn');
+  if(saveNoteBtn) saveNoteBtn.onclick=()=>{
+    const inp=document.getElementById('note-input');
+    if(!inp.value.trim())return;
+    state.board.notes.unshift({id:'nt'+Date.now(), text:inp.value.trim(), ts:todayStr()+' '+new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})});
+    state.board.notes=state.board.notes.slice(0,30);
+    inp.value='';
+    saveState();renderNotesList();
+  };
+  const aiRunBtn=document.getElementById('ai-run-btn');
+  if(aiRunBtn) aiRunBtn.onclick=runAiRecalc;
+  const settingsBtn=document.getElementById('ai-settings-btn');
+  if(settingsBtn) settingsBtn.onclick=openApiKeySettings;
+}
+
+function renderIndicationGridOnly(){
+  const cargo=activeCargoObj();
+  const gridEl=document.getElementById('indication-grid');
+  if(!cargo || !gridEl) return;
+  gridEl.innerHTML=buildCardsHtml(visibleRoutes(cargo));
+  attachBoardHandlers();
+  renderCargoPills();
+  updateDirectionButtons();
+}
+
+function renderNotesList(){
+  const el=document.getElementById('notes-list');
+  if(!el)return;
+  if(!state.board.notes.length){el.innerHTML='<div class="idea-empty">no notes yet</div>';return;}
+  el.innerHTML=state.board.notes.map(n=>`<div class="note-item">${escapeHtml(n.text)}<span class="ts">${escapeHtml(n.ts)}</span></div>`).join('');
+}
+
+function renderAiHistory(){
+  const el=document.getElementById('ai-history');
+  if(!el)return;
+  if(!state.board.aiHistory.length){el.innerHTML='';return;}
+  el.innerHTML='<p class="section-title" style="margin-top:4px">Request history</p>'+state.board.aiHistory.slice(0,10).map(h=>
+    `<div class="hist-item"><span class="q">"${escapeHtml(h.request)}"</span><br>${escapeHtml(h.summary)}<span class="ts">${escapeHtml(h.ts)}</span></div>`).join('');
+}
+
+/* ── API key settings (needed only when hosted outside Claude.ai, e.g. on Netlify) ── */
+function updateKeyStatus(){
+  const el=document.getElementById('ai-key-status');
+  if(!el)return;
+  const key=safeStorage.getItem('cgl_anthropic_key');
+  el.textContent=key ? 'API key: set locally (used only for this browser/device)' : 'API key: not set — needed only if this page is hosted outside Claude.ai (e.g. on Netlify)';
+}
+function openApiKeySettings(){
+  const cur=safeStorage.getItem('cgl_anthropic_key')||'';
+  const val=prompt('Anthropic API key.\n\nOnly needed if you opened this page from a hosted link (e.g. Netlify) instead of inside Claude.ai — inside Claude.ai this works automatically without a key.\n\n⚠ Warning: this key will be stored in this browser\'s local storage and sent directly from the browser. Do not use this on a page whose link you share publicly — anyone with dev tools access to the page could read it. Leave blank to clear.', cur);
+  if(val===null||val===undefined)return;
+  safeStorage.setItem('cgl_anthropic_key', val.trim());
+  updateKeyStatus();
+}
+
+/* ── AI recalculation — calls Anthropic API directly from the browser ── */
+async function runAiRecalc(){
+  const input=document.getElementById('ai-input');
+  const statusEl=document.getElementById('ai-status');
+  const summaryWrap=document.getElementById('ai-summary-wrap');
+  const btn=document.getElementById('ai-run-btn');
+  const useMail=document.getElementById('ai-use-mail').checked;
+  const useWeb=document.getElementById('ai-use-web').checked;
+  const requestText=input.value.trim();
+  if(!requestText){statusEl.textContent='Enter a request.';statusEl.className='ai-status err';return;}
+
+  btn.disabled=true;
+  statusEl.className='ai-status';
+  statusEl.innerHTML='<span class="spin"></span>Querying AI'+(useMail?' + mail':'')+(useWeb?' + web search':'')+'…';
+  summaryWrap.innerHTML='';
+
+  const boardSnapshot={};
+  Object.keys(state.board.cargoData).forEach(cid=>{
+    boardSnapshot[cid]={label:state.board.cargoData[cid].label, routes:state.board.cargoData[cid].routes.map(r=>({id:r.id,label:r.label,direction:r.direction,low:r.low,high:r.high,unit:r.unit}))};
+  });
+  const recentNotes=state.board.notes.slice(0,10).map(n=>n.text);
+
+  const systemPrompt=`You are an assistant to a dry-bulk freight broker working the Black Sea / Danube market (grain and other bulk cargo exports from Ukraine, plus backhaul cargo into Ukraine). Your job is to recalculate or update freight indications on request.
+
+Source priority: 1) mail (broker circulars — STRIBROK, EMA, Sea Lines, ARMADA, Trilogy) 2) the broker's notes given below 3) the current board data given below 4) web search — only if the first sources are insufficient.
+
+Rules:
+- Keep the rate range to about $5 wide.
+- Cite a source and date for every update.
+- If a figure is your own estimate/interpolation rather than a direct quote, set type:"estimate".
+- If you find no genuinely new data, do not invent numbers — keep the current range and say so in the summary.
+- "direction" must be either "outbound" (ex-Ukraine export) or "backhaul" (import into Ukraine/CVB).
+
+Respond STRICTLY as JSON, no markdown fences, no text before or after:
+{"summary":"1-3 sentences in English on what changed and why","updates":[{"cargo":"<existing cargo id from the board, or a new short slug>","route":"<exact existing direction name, or a new one>","direction":"outbound|backhaul","low":number,"high":number,"unit":"$/mt","type":"owners|charterers|estimate","note":"short note","source":"source","date":"dd.mm.yy"}]}
+
+Current board (JSON): ${JSON.stringify(boardSnapshot)}
+Broker's recent notes: ${JSON.stringify(recentNotes)}`;
+
+  const tools=[];
+  if(useWeb) tools.push({type:'web_search_20250305', name:'web_search'});
+  const mcp_servers=[];
+  if(useMail) mcp_servers.push({type:'url', url:'https://gmailmcp.googleapis.com/mcp/v1', name:'gmail-mcp'});
+
+  try{
+    const body={
+      model:'claude-sonnet-4-6',
+      max_tokens:1000,
+      system:systemPrompt,
+      messages:[{role:'user', content:requestText}]
+    };
+    if(tools.length) body.tools=tools;
+    if(mcp_servers.length) body.mcp_servers=mcp_servers;
+
+    const headers={'Content-Type':'application/json'};
+    const key=safeStorage.getItem('cgl_anthropic_key');
+    if(key){ headers['x-api-key']=key; headers['anthropic-dangerous-direct-browser-access']='true'; headers['anthropic-version']='2023-06-01'; }
+
+    const resp=await fetch('https://api.anthropic.com/v1/messages',{ method:'POST', headers, body:JSON.stringify(body) });
+    if(!resp.ok){
+      let extra='';
+      if(resp.status===401 || resp.status===403) extra=' — if this page is hosted outside Claude.ai, add your API key via the ⚙ button.';
+      throw new Error('HTTP '+resp.status+extra);
+    }
+    const data=await resp.json();
+    const textBlocks=(data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('\n').trim();
+    const usedTools=(data.content||[]).filter(b=>b.type==='mcp_tool_use'||b.type==='server_tool_use').map(b=>b.name||b.type);
+
+    let clean=textBlocks.replace(/```json/gi,'').replace(/```/g,'').trim();
+    let parsed;
+    try{ parsed=JSON.parse(clean); }
+    catch(e){
+      statusEl.textContent='AI replied, but not in JSON — showing raw text.';
+      statusEl.className='ai-status err';
+      summaryWrap.innerHTML=`<div class="ai-summary-box">${escapeHtml(textBlocks||'(empty response)')}</div>`;
+      btn.disabled=false;
+      return;
+    }
+
+    const applied=applyAiUpdates(parsed.updates||[]);
+    state.board.aiHistory.unshift({id:'ai'+Date.now(), request:requestText, summary:parsed.summary||'(no summary)', ts:todayStr()+' '+new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})});
+    state.board.aiHistory=state.board.aiHistory.slice(0,20);
+    saveState();
+
+    statusEl.textContent='Done'+(usedTools.length?(' · used: '+usedTools.join(', ')):'')+(applied?' · directions updated: '+applied:' · no updates needed');
+    statusEl.className='ai-status';
+    summaryWrap.innerHTML=`<div class="ai-summary-box">${escapeHtml(parsed.summary||'')}</div>`;
+    input.value='';
+    renderIndicationGridOnly();
+    renderAiHistory();
+  }catch(err){
+    statusEl.textContent='Request error: '+err.message;
+    statusEl.className='ai-status err';
+  }finally{
+    btn.disabled=false;
+  }
+}
+
+function applyAiUpdates(updates){
+  let count=0;
+  updates.forEach(u=>{
+    if(!u || typeof u.low!=='number') return;
+    let cargoId=u.cargo && state.board.cargoData[u.cargo] ? u.cargo : null;
+    if(!cargoId){
+      cargoId=Object.keys(state.board.cargoData).find(cid=>state.board.cargoData[cid].label.toLowerCase()===(u.cargo||'').toLowerCase());
+    }
+    if(!cargoId){
+      cargoId=(u.cargo||'cargo'+Date.now()).toString().slice(0,40);
+      state.board.cargoData[cargoId]={label:u.cargo||'New cargo', routes:[]};
+    }
+    const cargo=state.board.cargoData[cargoId];
+    let route=cargo.routes.find(r=>r.label.toLowerCase()===(u.route||'').toLowerCase());
+    const dir=(u.direction==='backhaul')?'backhaul':'outbound';
+    if(!route){
+      route={id:'r'+Date.now()+Math.floor(Math.random()*1000), label:u.route||'Direction', direction:dir, low:u.low, high:u.high||u.low, unit:u.unit||'$/mt', ownersIdeas:[], charterersIdeas:[], updatedAt:''};
+      cargo.routes.push(route);
+    }
+    route.low=u.low;
+    route.high=u.high||u.low;
+    if(u.unit) route.unit=u.unit;
+    if(u.direction) route.direction=dir;
+    route.updatedAt=u.date||todayStr();
+    const entry={text:(u.note||'updated via AI request')+(u.type==='estimate'?' (estimate)':''), source:u.source||'AI recalculation', date:u.date||todayStr()};
+    const bucket=u.type==='owners' ? 'ownersIdeas' : (u.type==='charterers' ? 'charterersIdeas' : 'ownersIdeas');
+    route[bucket].unshift(entry);
+    route[bucket]=route[bucket].slice(0,6);
+    count++;
+  });
+  return count;
+}
+
+/* ── PDF export ── */
+function openExportModal(){
+  const backdrop=document.createElement('div');
+  backdrop.className='modal-backdrop';
+  backdrop.id='export-modal-backdrop';
+
+  let groupsHtml='';
+  Object.keys(state.board.cargoData).forEach(cid=>{
+    const c=state.board.cargoData[cid];
+    if(!c.routes.length) return;
+    groupsHtml+=`<div class="export-group-title">${escapeHtml(c.label)}</div>`;
+    c.routes.forEach(r=>{
+      const rateStr=r.low===r.high?r.low:r.low+'–'+r.high;
+      groupsHtml+=`<div class="export-row">
+        <input type="checkbox" class="exp-check" data-cid="${cid}" data-rid="${r.id}">
+        <span class="er-label">${escapeHtml(r.label)} <span style="color:var(--text-muted);font-size:10px">(${r.direction})</span></span>
+        <span class="er-rate">${escapeHtml(String(rateStr))} ${escapeHtml(r.unit||'$/mt')}</span>
+        <input type="text" class="exp-qty" data-cid="${cid}" data-rid="${r.id}" placeholder="qty, e.g. 3,000–5,000 mt">
+      </div>`;
+    });
+  });
+
+  backdrop.innerHTML=`<div class="modal-box">
+    <div class="modal-head"><h3>Export indications to PDF</h3><button class="modal-close" id="export-modal-close">✕</button></div>
+    <div class="modal-body">
+      <div class="hint-box" style="margin-bottom:12px">Select the directions to include and optionally enter a quantity for each. The PDF will only show Direction — Quantity — Indication, with no source or owners/charterers detail.</div>
+      ${groupsHtml || '<div class="idea-empty">No directions available.</div>'}
+    </div>
+    <div class="modal-foot">
+      <button class="btn-ghost" id="export-select-all-btn">Select all</button>
+      <button class="btn-primary" id="export-generate-btn" style="width:auto">Generate PDF</button>
+    </div>
+  </div>`;
+  document.body.appendChild(backdrop);
+
+  document.getElementById('export-modal-close').onclick=()=>backdrop.remove();
+  backdrop.addEventListener('click',(e)=>{ if(e.target===backdrop) backdrop.remove(); });
+  document.getElementById('export-select-all-btn').onclick=()=>{
+    const boxes=backdrop.querySelectorAll('.exp-check');
+    const allChecked=[...boxes].every(b=>b.checked);
+    boxes.forEach(b=>b.checked=!allChecked);
+  };
+  document.getElementById('export-generate-btn').onclick=()=>generateIndicationsPdf(backdrop);
+}
+
+function generateIndicationsPdf(backdrop){
+  const rows=[];
+  backdrop.querySelectorAll('.exp-check:checked').forEach(cb=>{
+    const cid=cb.dataset.cid, rid=cb.dataset.rid;
+    const cargo=state.board.cargoData[cid];
+    const route=cargo.routes.find(r=>r.id===rid);
+    if(!route)return;
+    const qtyInput=backdrop.querySelector('.exp-qty[data-cid="'+cid+'"][data-rid="'+rid+'"]');
+    const qty=(qtyInput && qtyInput.value.trim()) || '—';
+    const rateStr=(route.low===route.high?route.low:route.low+'–'+route.high)+' '+(route.unit||'$/mt');
+    rows.push({direction:route.label+' ('+cargo.label+')', qty, rate:rateStr});
+  });
+  if(!rows.length){alert('Select at least one direction.');return;}
+  if(!window.jspdf){alert('PDF library did not load — check your internet connection and try again.');return;}
+
+  const { jsPDF }=window.jspdf;
+  const doc=new jsPDF({unit:'pt',format:'a4'});
+  const marginX=40; let y=50;
+
+  doc.setFont('helvetica','bold'); doc.setFontSize(15);
+  doc.text('Chayka Group Logistic (CGL) — Freight Indications', marginX, y);
+  y+=18;
+  doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(120);
+  doc.text('Generated: '+new Date().toLocaleString('en-GB'), marginX, y);
+  doc.setTextColor(0);
+  y+=24;
+
+  const col1=marginX, col2=340, col3=440;
+  doc.setFont('helvetica','bold'); doc.setFontSize(10);
+  doc.text('Direction', col1, y); doc.text('Quantity', col2, y); doc.text('Indication', col3, y);
+  y+=6;
+  doc.setDrawColor(200); doc.line(marginX, y, 555, y);
+  y+=14;
+
+  doc.setFont('helvetica','normal'); doc.setFontSize(10);
+  rows.forEach(r=>{
+    if(y>780){ doc.addPage(); y=50; }
+    const dirLines=doc.splitTextToSize(r.direction, col2-col1-10);
+    doc.text(dirLines, col1, y);
+    doc.text(String(r.qty), col2, y);
+    doc.text(String(r.rate), col3, y);
+    y+=Math.max(14, dirLines.length*12)+6;
+  });
+
+  doc.save('CGL_Indications_'+todayStr().replace(/\./g,'-')+'.pdf');
+  backdrop.remove();
+}
+
+/* ══════════════════════════════════════════════════════════
+   CHECKLIST (second tab)
+   ══════════════════════════════════════════════════════════ */
+function voyageLabel(v){
+  const mv=(v.header.mv||'').trim(); const voy=(v.header.voyage||'').trim();
+  if(mv) return mv+(voy?' / '+voy:'');
+  return 'New Voyage';
+}
+function voyageProgress(v){
+  let total=0,done=0;
+  Object.values(v.tasks).forEach(t=>{total++; if(t.status===2) done+=1; else if(t.status===1) done+=0.5;});
+  return total?Math.round(done/total*100):0;
+}
+function renderVoyagePills(){
+  const wrap=document.getElementById('voyage-pills');
+  wrap.innerHTML='';
+  state.voyages.forEach(v=>{
+    const pill=document.createElement('div');
+    pill.className='voyage-pill'+(v.id===state.activeId?' active':'');
+    const pct=voyageProgress(v);
+    pill.innerHTML=`<span class="prog-dot" style="background:${pct===100?'var(--success)':pct>0?'var(--warn)':'var(--status-none-fg)'}"></span>
+      <span>${escapeHtml(voyageLabel(v))}</span><span class="del-x" title="Delete voyage">✕</span>`;
+    const nameSpan=pill.querySelector('span:nth-child(2)');
+    nameSpan.onclick=()=>{state.activeId=v.id;saveState();render();};
+    nameSpan.title='Click — open voyage. Double-click — rename vessel.';
+    nameSpan.ondblclick=(e)=>{
+      e.stopPropagation();
+      const cur=(v.header.mv||'').trim();
+      const name=prompt('Vessel name:',cur);
+      if(name===null||name===undefined)return;
+      v.header.mv=name.trim();
+      saveState();render();
+    };
+    pill.querySelector('.prog-dot').onclick=()=>{state.activeId=v.id;saveState();render();};
+    pill.querySelector('.del-x').onclick=(e)=>{
+      e.stopPropagation();
+      if(state.voyages.length===1){alert('Cannot delete the only voyage');return;}
+      if(!confirm('Delete voyage "'+voyageLabel(v)+'"? This action is irreversible.'))return;
+      state.voyages=state.voyages.filter(x=>x.id!==v.id);
+      if(state.activeId===v.id) state.activeId=state.voyages[0].id;
+      saveState();render();
+    };
+    wrap.appendChild(pill);
+  });
+  const addBtn=document.createElement('button');
+  addBtn.className='add-voyage-btn';
+  addBtn.textContent='＋ Vessel';
+  addBtn.onclick=()=>{
+    const name=prompt('Vessel name for the new voyage:','');
+    if(name===null||name===undefined)return;
+    const v=newVoyageObj(); v.header.mv=name.trim();
+    state.voyages.push(v); state.activeId=v.id; saveState();render();
+  };
+  wrap.appendChild(addBtn);
+}
+function field(v,group,key,label){
+  const val=escapeHtml(v[group][key]||'');
+  return `<div class="field"><label>${label}</label><input type="text" value="${val}" data-group="${group}" data-key="${key}"></div>`;
+}
+function noaRow(v,group,label){
+  const obj=v[group];
+  const items=NOA_STAGES.map(([key,lbl])=>{
+    const checked=obj[key]?'checked':''; const cls=obj[key]?' checked':'';
+    return `<label class="noa-check${cls}"><input type="checkbox" data-noa="${group}" data-key="${key}" ${checked}> ${lbl}</label>`;
+  }).join('');
+  return `<div class="noa-row"><span class="noa-row-label">${escapeHtml(label)}</span>${items}</div>`;
+}
+function taskRow(v,tid,label){
+  const t=v.tasks[tid];
+  const statusText=t.status===2?'✓ Done':t.status===1?'◐ Partly':'— Not started';
+  return `<div class="task-row"><div class="task-label">${escapeHtml(label)}</div>
+    <div class="task-controls"><button class="status-btn" data-status="${t.status}" data-tid="${tid}">${statusText}</button>
+    <input class="remarks-input" data-tid="${tid}" type="text" placeholder="Remark…" value="${escapeHtml(t.remarks||'')}"></div></div>`;
+}
+function renderChecklistMain(){
+  const v=activeVoyage();
+  const wrap=document.getElementById('main-wrap');
+  if(!v){wrap.innerHTML='<div class="empty-state"><div class="big">⚓</div>No active voyages</div>';return;}
+  const pct=voyageProgress(v);
+  let html='';
+  html+=`<div class="card"><p class="section-title">Voyage main data</p>
+    <div class="field-grid cols-3">${field(v,'header','cpdate','C/P DATE')}${field(v,'header','mv','M/V')}${field(v,'header','voyage','VOYAGE #')}
+    <div class="field full">${field(v,'header','cargo','CARGO').replace(/^<div class="field">/,'').replace(/<\/div>$/,'')}</div></div></div>`;
+  html+=`<div class="port-cols">
+    <div class="card"><p class="section-title">Load port</p><div class="field-grid">
+      ${field(v,'load','port','PORT')}${field(v,'load','agent','AGENT')}${field(v,'load','eta','ETA')}
+      ${field(v,'load','etb','ETB')}${field(v,'load','ets','ETS')}${field(v,'load','ttlstay','TTL STAY / RATE')}
+      ${field(v,'load','lc','L/C')}${field(v,'load','extsn','EXTSN')}</div></div>
+    <div class="card"><p class="section-title">Discharge port</p><div class="field-grid">
+      ${field(v,'disch','port','PORT')}${field(v,'disch','agent','AGENT')}${field(v,'disch','eta','ETA')}
+      ${field(v,'disch','etb','ETB')}${field(v,'disch','ets','ETS')}${field(v,'disch','ttlstay','TTL STAY / RATE')}</div></div>
+  </div>`;
+  html+=`<div class="card"><p class="section-title">NOA to Broker + Agent (prior port arrival)</p>${noaRow(v,'noaLoad','Load port')}${noaRow(v,'noaDisch','Discharge port')}</div>`;
+  html+=`<div class="card"><p class="section-title">Progress</p><div class="progress-wrap">
+      <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div><div class="progress-pct">${pct}%</div></div></div>`;
+  SECTIONS.forEach(sec=>{
+    let secDone=0;
+    sec.tasks.forEach(([tid])=>{const st=v.tasks[tid].status; if(st===2) secDone+=1; else if(st===1) secDone+=0.5;});
+    const allDone=secDone===sec.tasks.length;
+    html+=`<details class="section" data-open="${sec.id}"><summary><span class="chev">▶</span><span>${escapeHtml(sec.title)}</span>
+      <span class="sec-count${allDone?' all-done':''}">${Math.round(secDone*10)/10}/${sec.tasks.length}</span></summary>
+      <div class="sec-body">${sec.tasks.map(([tid,label])=>taskRow(v,tid,label)).join('')}</div></details>`;
+  });
+  html+=`<div class="card"><div class="footer-actions">
+      <button class="btn-primary" id="copy-summary-btn" style="width:auto">📋 Copy summary</button>
+      <button class="btn-ghost" id="reset-voyage-btn">Reset voyage status</button>
+      <span class="copy-msg" id="copy-msg">✓ Copied!</span></div></div>`;
+  wrap.innerHTML=html;
+  attachChecklistHandlers(v);
+}
+function attachChecklistHandlers(v){
+  document.querySelectorAll('input[data-group]').forEach(inp=>{
+    inp.addEventListener('input',()=>{v[inp.dataset.group][inp.dataset.key]=inp.value;saveState();if(inp.dataset.group==='header'){renderVoyagePills();}});
+  });
+  document.querySelectorAll('input[data-noa]').forEach(cb=>{
+    cb.addEventListener('change',()=>{v[cb.dataset.noa][cb.dataset.key]=cb.checked;cb.closest('label').classList.toggle('checked',cb.checked);saveState();});
+  });
+  document.querySelectorAll('.status-btn').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const tid=btn.dataset.tid; const cur=v.tasks[tid].status; const next=(cur+1)%3;
+      v.tasks[tid].status=next; btn.dataset.status=next;
+      btn.textContent=next===2?'✓ Done':next===1?'◐ Partly':'— Not started';
+      saveState(); updateSectionCount(btn); updateProgress(); renderVoyagePills();
+    });
+  });
+  document.querySelectorAll('.remarks-input').forEach(inp=>{
+    inp.addEventListener('input',()=>{v.tasks[inp.dataset.tid].remarks=inp.value;saveState();});
+  });
+  const copyBtn=document.getElementById('copy-summary-btn'); if(copyBtn) copyBtn.onclick=()=>copySummary(v);
+  const resetBtn=document.getElementById('reset-voyage-btn');
+  if(resetBtn) resetBtn.onclick=()=>{
+    if(!confirm('Reset all statuses and remarks for the current voyage?'))return;
+    Object.keys(v.tasks).forEach(tid=>{v.tasks[tid]={status:0,remarks:''}});
+    saveState();renderChecklistMain();
+  };
+}
+function updateSectionCount(btnEl){
+  const detailsEl=btnEl.closest('details.section'); if(!detailsEl)return;
+  const sec=SECTIONS.find(s=>s.id===detailsEl.dataset.open); const v=activeVoyage();
+  let secDone=0;
+  sec.tasks.forEach(([tid])=>{const st=v.tasks[tid].status; if(st===2) secDone+=1; else if(st===1) secDone+=0.5;});
+  const countEl=detailsEl.querySelector('.sec-count'); const allDone=secDone===sec.tasks.length;
+  countEl.textContent=`${Math.round(secDone*10)/10}/${sec.tasks.length}`;
+  countEl.classList.toggle('all-done',allDone);
+}
+function updateProgress(){
+  const v=activeVoyage(); const pct=voyageProgress(v);
+  const fill=document.querySelector('.progress-fill'); const pctEl=document.querySelector('.progress-pct');
+  if(fill) fill.style.width=pct+'%'; if(pctEl) pctEl.textContent=pct+'%';
+}
+function statusWord(s){return s===2?'DONE':s===1?'PARTLY':'-';}
+function copySummary(v){
+  let lines=[];
+  lines.push('VOYAGE CHECK LIST — '+voyageLabel(v));
+  lines.push('C/P Date: '+(v.header.cpdate||'-')+' | Cargo: '+(v.header.cargo||'-'));
+  lines.push('Load: '+(v.load.port||'-')+' | Agent: '+(v.load.agent||'-')+' | ETA '+(v.load.eta||'-'));
+  lines.push('Disch: '+(v.disch.port||'-')+' | Agent: '+(v.disch.agent||'-')+' | ETA '+(v.disch.eta||'-'));
+  lines.push('');
+  SECTIONS.forEach(sec=>{
+    lines.push('— '+sec.title.toUpperCase()+' —');
+    sec.tasks.forEach(([tid,label])=>{
+      const t=v.tasks[tid]; let l='['+statusWord(t.status)+'] '+label; if(t.remarks) l+=' — '+t.remarks; lines.push(l);
+    });
+    lines.push('');
+  });
+  const text=lines.join('\n');
+  navigator.clipboard.writeText(text).then(()=>{
+    const m=document.getElementById('copy-msg'); m.style.display='inline';
+    setTimeout(()=>m.style.display='none',2500);
+  }).catch(()=>{alert('Could not copy automatically. Summary text was logged to the console.');console.log(text);});
+}
+
+/* ══ THEME ══ */
+function toggleTheme(){
+  const cur=document.documentElement.getAttribute('data-theme')||'light';
+  const next=cur==='dark'?'light':'dark';
+  document.documentElement.setAttribute('data-theme',next);
+  safeStorage.setItem('vc_theme',next);
+  document.getElementById('theme-btn').textContent=next==='dark'?'☀️':'🌙';
+}
+(function(){
+  const t=safeStorage.getItem('vc_theme')||'light';
+  document.documentElement.setAttribute('data-theme',t);
+})();
+
+/* ══ INIT ══ */
+function boot(){
+  document.getElementById('theme-btn').textContent=(safeStorage.getItem('vc_theme')||'light')==='dark'?'☀️':'🌙';
+  if(getToken()){ loadRemoteStateAndRender(); } else { showAuthGate(); }
+}
+if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',boot);}else{boot();}
+</script>
+</body>
+</html>
