@@ -117,6 +117,16 @@ body,*{scrollbar-width:thin;scrollbar-color:var(--border) transparent}
 .note-item{font-size:11.5px;padding:7px 0;border-top:1px solid var(--border-soft);line-height:1.4}
 .note-item:first-child{border-top:none}
 .note-item .ts{display:block;color:var(--text-muted);font-size:9.5px;margin-top:2px}
+.doc-item{font-size:11.5px;padding:8px 0;border-top:1px solid var(--border-soft);line-height:1.4}
+.doc-item:first-child{border-top:none}
+.doc-item .doc-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.doc-item .doc-title{font-weight:600;color:var(--text)}
+.doc-item .doc-meta{color:var(--text-muted);font-size:9.5px;margin-top:1px}
+.doc-item .doc-del{background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:12px;flex-shrink:0}
+.doc-item .doc-del:hover{color:var(--err)}
+.doc-item .doc-toggle{color:var(--text-muted);cursor:pointer;text-decoration:underline;font-size:10px;margin-top:3px;display:inline-block}
+.doc-item .doc-preview{color:var(--text-muted);margin-top:3px;white-space:pre-wrap;max-height:160px;overflow-y:auto;display:none;background:var(--input-bg);border-radius:6px;padding:6px 8px;font-family:'IBM Plex Mono',monospace;font-size:10px}
+.doc-item .doc-preview.open{display:block}
 .hist-item{font-size:11px;padding:7px 0;border-top:1px solid var(--border-soft);line-height:1.4}
 .hist-item .q{color:var(--text-muted)}
 .hist-item .ts{display:block;color:var(--text-muted);font-size:9.5px;margin-top:2px}
@@ -709,6 +719,14 @@ function renderBoardMain(){
           <div id="notes-list" style="margin-top:10px;max-height:160px;overflow-y:auto"></div>
         </div>
         <div class="card ai-panel" style="margin-top:14px">
+          <p class="section-title">Knowledge base (reports & circulars)</p>
+          <div class="field" style="margin-bottom:6px"><input type="text" id="doc-title-input" placeholder="Title, e.g. STRIBROK week 36"></div>
+          <textarea class="ai-textarea" id="doc-content-input" placeholder="Paste the full report/circular text here — STRIBROK, EMA, Sea Lines, cargo-order lists, etc."></textarea>
+          <div style="margin-top:8px"><button class="btn-ghost" id="save-doc-btn" style="width:100%">Save document</button></div>
+          <div class="ai-status" id="doc-status"></div>
+          <div id="doc-list" style="margin-top:10px;max-height:220px;overflow-y:auto"></div>
+        </div>
+        <div class="card ai-panel" style="margin-top:14px">
           <div class="ai-panel-head">
             <p class="section-title">AI request — recalculate indication</p>
             <button class="gear-btn" id="ai-settings-btn" title="API key settings">⚙</button>
@@ -717,6 +735,7 @@ function renderBoardMain(){
           <div class="ai-toggle-row">
             <label class="ai-toggle"><input type="checkbox" id="ai-use-mail" checked> mail (Gmail)</label>
             <label class="ai-toggle"><input type="checkbox" id="ai-use-web" checked> web search</label>
+            <label class="ai-toggle"><input type="checkbox" id="ai-use-kb" checked> knowledge base</label>
           </div>
           <button class="btn-primary" id="ai-run-btn">🔄 Recalculate</button>
           <div class="ai-status" id="ai-status"></div>
@@ -732,6 +751,7 @@ function renderBoardMain(){
   renderNotesList();
   renderAiHistory();
   updateKeyStatus();
+  loadAndRenderDocList();
 }
 
 function updateDirectionButtons(){
@@ -808,6 +828,8 @@ function attachBoardHandlers(){
     inp.value='';
     saveState();renderNotesList();
   };
+  const saveDocBtn=document.getElementById('save-doc-btn');
+  if(saveDocBtn) saveDocBtn.onclick=saveDocument;
   const aiRunBtn=document.getElementById('ai-run-btn');
   if(aiRunBtn) aiRunBtn.onclick=runAiRecalc;
   const settingsBtn=document.getElementById('ai-settings-btn');
@@ -829,6 +851,72 @@ function renderNotesList(){
   if(!el)return;
   if(!state.board.notes.length){el.innerHTML='<div class="idea-empty">no notes yet</div>';return;}
   el.innerHTML=state.board.notes.map(n=>`<div class="note-item">${escapeHtml(n.text)}<span class="ts">${escapeHtml(n.ts)}</span></div>`).join('');
+}
+
+/* ── Knowledge base documents (stored server-side, shared team-wide) ── */
+let docListCache=[];
+async function loadAndRenderDocList(){
+  const el=document.getElementById('doc-list');
+  if(!el)return;
+  try{
+    const res=await apiRequest('GET','/api/documents');
+    docListCache=res.documents||[];
+    renderDocList();
+  }catch(e){
+    if(e.message!=='Session expired') el.innerHTML='<div class="idea-empty">could not load documents</div>';
+  }
+}
+function renderDocList(){
+  const el=document.getElementById('doc-list');
+  if(!el)return;
+  if(!docListCache.length){el.innerHTML='<div class="idea-empty">no documents saved yet</div>';return;}
+  el.innerHTML=docListCache.map(d=>{
+    const preview=(d.content||'').slice(0,2000);
+    return `<div class="doc-item" data-docid="${d.id}">
+      <div class="doc-head">
+        <div>
+          <div class="doc-title">${escapeHtml(d.title)}</div>
+          <div class="doc-meta">${escapeHtml(d.source||'manual paste')} · ${escapeHtml((d.created_at||'').slice(0,10))} · ${escapeHtml(d.created_by||'')}</div>
+        </div>
+        <button class="doc-del" data-docid="${d.id}" title="Delete document">✕</button>
+      </div>
+      <span class="doc-toggle" data-docid="${d.id}">show/hide text</span>
+      <div class="doc-preview" data-docid="${d.id}">${escapeHtml(preview)}${(d.content||'').length>2000?'…':''}</div>
+    </div>`;
+  }).join('');
+  el.querySelectorAll('.doc-toggle').forEach(t=>{
+    t.addEventListener('click',()=>{
+      const pv=el.querySelector('.doc-preview[data-docid="'+t.dataset.docid+'"]');
+      if(pv) pv.classList.toggle('open');
+    });
+  });
+  el.querySelectorAll('.doc-del').forEach(b=>{
+    b.addEventListener('click',async ()=>{
+      if(!confirm('Delete this document from the knowledge base?'))return;
+      try{
+        await apiRequest('DELETE','/api/documents/'+encodeURIComponent(b.dataset.docid));
+        await loadAndRenderDocList();
+      }catch(e){ if(e.message!=='Session expired') alert('Could not delete: '+e.message); }
+    });
+  });
+}
+async function saveDocument(){
+  const titleInp=document.getElementById('doc-title-input');
+  const contentInp=document.getElementById('doc-content-input');
+  const statusEl=document.getElementById('doc-status');
+  const title=titleInp.value.trim();
+  const content=contentInp.value.trim();
+  if(!title||!content){ statusEl.textContent='Title and text are both required.'; statusEl.className='ai-status err'; return; }
+  statusEl.textContent='Saving…'; statusEl.className='ai-status';
+  try{
+    await apiRequest('POST','/api/documents',{title, content, source:'manual paste'});
+    titleInp.value=''; contentInp.value='';
+    statusEl.textContent='✓ saved'; statusEl.className='ai-status';
+    setTimeout(()=>{statusEl.textContent='';},1800);
+    await loadAndRenderDocList();
+  }catch(e){
+    if(e.message!=='Session expired'){ statusEl.textContent='Save failed: '+e.message; statusEl.className='ai-status err'; }
+  }
 }
 
 function renderAiHistory(){
@@ -862,12 +950,13 @@ async function runAiRecalc(){
   const btn=document.getElementById('ai-run-btn');
   const useMail=document.getElementById('ai-use-mail').checked;
   const useWeb=document.getElementById('ai-use-web').checked;
+  const useKb=document.getElementById('ai-use-kb').checked;
   const requestText=input.value.trim();
   if(!requestText){statusEl.textContent='Enter a request.';statusEl.className='ai-status err';return;}
 
   btn.disabled=true;
   statusEl.className='ai-status';
-  statusEl.innerHTML='<span class="spin"></span>Querying AI'+(useMail?' + mail':'')+(useWeb?' + web search':'')+'…';
+  statusEl.innerHTML='<span class="spin"></span>Querying AI'+(useMail?' + mail':'')+(useKb?' + knowledge base':'')+(useWeb?' + web search':'')+'…';
   summaryWrap.innerHTML='';
 
   const boardSnapshot={};
@@ -876,9 +965,28 @@ async function runAiRecalc(){
   });
   const recentNotes=state.board.notes.slice(0,10).map(n=>n.text);
 
+  let kbContext='(knowledge base not used for this request)';
+  if(useKb){
+    try{
+      const docsRes=await apiRequest('GET','/api/documents');
+      const docs=docsRes.documents||[];
+      const MAX_CHARS=8000;
+      let used=0; const parts=[];
+      for(const d of docs){
+        const chunk=`--- ${d.title} (${d.source||'manual paste'}, ${(d.created_at||'').slice(0,10)}) ---\n${d.content}`;
+        if(used+chunk.length>MAX_CHARS) break;
+        parts.push(chunk); used+=chunk.length;
+      }
+      kbContext = parts.length ? parts.join('\n\n') : '(no documents saved yet)';
+    }catch(e){
+      if(e.message==='Session expired') { btn.disabled=false; return; }
+      kbContext='(could not load knowledge base: '+e.message+')';
+    }
+  }
+
   const systemPrompt=`You are an assistant to a dry-bulk freight broker working the Black Sea / Danube market (grain and other bulk cargo exports from Ukraine, plus backhaul cargo into Ukraine). Your job is to recalculate or update freight indications on request.
 
-Source priority: 1) mail (broker circulars — STRIBROK, EMA, Sea Lines, ARMADA, Trilogy) 2) the broker's notes given below 3) the current board data given below 4) web search — only if the first sources are insufficient.
+Source priority: 1) mail (broker circulars — STRIBROK, EMA, Sea Lines, ARMADA, Trilogy) 2) the knowledge base documents given below (reports/circulars the broker has manually saved) 3) the broker's recent notes given below 4) the current board data given below 5) web search — only if the first sources are insufficient.
 
 Rules:
 - Keep the rate range to about $5 wide.
@@ -889,6 +997,9 @@ Rules:
 
 Respond STRICTLY as JSON, no markdown fences, no text before or after:
 {"summary":"1-3 sentences in English on what changed and why","updates":[{"cargo":"<existing cargo id from the board, or a new short slug>","route":"<exact existing direction name, or a new one>","direction":"outbound|backhaul","low":number,"high":number,"unit":"$/mt","type":"owners|charterers|estimate","note":"short note","source":"source","date":"dd.mm.yy"}]}
+
+Knowledge base documents:
+${kbContext}
 
 Current board (JSON): ${JSON.stringify(boardSnapshot)}
 Broker's recent notes: ${JSON.stringify(recentNotes)}`;
