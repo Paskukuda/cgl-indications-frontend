@@ -97,6 +97,28 @@ body,*{scrollbar-width:thin;scrollbar-color:var(--border) transparent}
 .add-route-card{border:1.5px dashed var(--border);border-radius:12px;display:flex;align-items:center;justify-content:center;min-height:140px;color:var(--text-muted);font-size:12.5px;font-weight:600;cursor:pointer;background:transparent}
 .add-route-card:hover{border-color:var(--val-outline);color:var(--text)}
 
+/* unified tile board */
+.tile-board-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px 18px}
+.tile-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
+.tile{background:var(--input-bg);border-radius:8px;padding:10px 12px;cursor:default;display:flex;flex-direction:column}
+.tile.expanded{grid-column:1/-1}
+.tile-label{font-size:11px;color:var(--text-muted);margin-bottom:2px;line-height:1.3}
+.tile-value{font-size:19px;font-weight:700;color:var(--text);cursor:pointer;width:fit-content;line-height:1.15}
+.tile-value:hover{color:var(--val-outline)}
+.tile-value .unit{font-size:11px;font-weight:600;color:var(--text-muted);margin-left:3px}
+.tile-sub{font-size:9.5px;margin:5px 0 0;line-height:1.35}
+.tile-sub.owners{color:var(--owner-clr)}
+.tile-sub.charterers{color:var(--charterer-clr)}
+.tile-sub.estimate{color:var(--estimate-clr)}
+.tile-sub.empty{color:var(--text-muted);font-style:italic}
+.tile-foot{display:flex;align-items:center;justify-content:space-between;margin-top:6px}
+.tile-expand-btn{font-size:10px;color:var(--text-muted);cursor:pointer;background:none;border:none;padding:0;font-family:inherit;text-decoration:underline}
+.tile-expand-btn:hover{color:var(--text)}
+.tile-detail{margin-top:10px;padding-top:10px;border-top:1px solid var(--border-soft)}
+.tile-detail .idea-add-btn{margin-bottom:8px}
+.tile-add-card{border:1.5px dashed var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;min-height:64px;color:var(--text-muted);font-size:11.5px;font-weight:600;cursor:pointer;background:transparent}
+.tile-add-card:hover{border-color:var(--val-outline);color:var(--text)}
+
 .ai-panel{position:sticky;top:150px}
 .ai-panel-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
 .ai-panel-head .section-title{margin-bottom:0}
@@ -442,32 +464,65 @@ function seedBoard(){
     activeDirection:'outbound',
     cargoData:{
       wheat:{label:'Wheat (SF ~47)', routes:[
-        {id:'w1', label:'Danube (Izmail) → Marmara', direction:'outbound', low:78, high:82, unit:'$/mt',
-          ownersIdeas:[{text:'3,000t $80 / 6,000t $78–82 (up +53–70% since 20.08)', source:'STRIBROK+ISM Report+ARMADA, combined analysis', date:'02.09.26'}],
-          charterersIdeas:[
-            {text:'Izmail/Reni → Samsun/Marmara $53 (2,700–3,300t)', source:'MHP Food Trading LLC, cargo order', date:'19.08.26'},
-            {text:'Izmail → Marmara/Egypt $65 (5,000–10,000t)', source:'Katana Trade LTD, cargo order', date:'04.08.26'},
-            {text:'Danube Ports → Marmara $65–67 (5,000mts coaster)', source:'EMA Ship Management, week 36', date:'31.08.26'}
-          ], updatedAt:'02.09.26'},
-        {id:'w2', label:'Danube → Egypt Med / Mersin / Iskenderun', direction:'outbound', low:93, high:98, unit:'$/mt',
-          ownersIdeas:[{text:'3,000t $85 / 6,000t $93–98 (up +41–63% since mid-July)', source:'STRIBROK+ISM Report+ARMADA, combined analysis', date:'02.09.26'}],
-          charterersIdeas:[
-            {text:'Izmail → Mersin "70+" (4,000–8,000t)', source:'Hermes-Trading LLC, cargo order', date:'28.08.26'},
-            {text:'Izmail/Galati → Egypt Med $67', source:'Hermes-Trading LLC, cargo order', date:'20.08.26'},
-            {text:'Izmail/Reni → Tartus/Tripoli/Egypt $82 (5,400–6,600t)', source:'AGROTRADING/AGROFOND, cargo order', date:'21.08.26'}
-          ], updatedAt:'02.09.26'},
-        {id:'w3', label:'Danube → Greece (EC/WC)', direction:'outbound', low:83, high:91, unit:'$/mt',
-          ownersIdeas:[{text:'EC Greece $83–87 / WC Greece $87–91', source:'STRIBROK+ISM Report+ARMADA, combined analysis', date:'02.09.26'}],
-          charterersIdeas:[{text:'Izmail/Reni → Greece: ECG $64 / WCG $71 (2,700–3,300t)', source:'MHP Food Trading LLC, cargo order', date:'19.08.26'}],
+        {id:'w_tbs', label:'Danube → Turkish Black Sea (TBS)', direction:'outbound', low:60, high:65, unit:'$/mt',
+          ownersIdeas:[{text:'Calculated estimate, no direct circular data yet (estimate)', source:'internal calculation', date:'11.09.26'}],
+          charterersIdeas:[], updatedAt:'11.09.26'},
+        {id:'w_geo', label:'Danube → Georgia (Poti)', direction:'outbound', low:60, high:65, unit:'$/mt',
+          ownersIdeas:[{text:'Calculated estimate, based on TBS-adjacent distance logic (estimate)', source:'internal calculation', date:'11.09.26'}],
+          charterersIdeas:[], updatedAt:'11.09.26'},
+        {id:'w_mar3', label:'Danube (Izmail) → Marmara (3,000t lot)', direction:'outbound', low:80, high:80, unit:'$/mt',
+          ownersIdeas:[{text:'Up +70% since 20.08', source:'STRIBROK+ISM Report+ARMADA, combined analysis', date:'02.09.26'}],
+          charterersIdeas:[{text:'Danube Ports → Marmara $65–67 (5,000mts coaster)', source:'EMA Ship Management, week 36', date:'31.08.26'}],
           updatedAt:'02.09.26'},
-        {id:'w4', label:'Danube → Cyprus / Famagusta', direction:'outbound', low:93, high:98, unit:'$/mt',
-          ownersIdeas:[{text:'$93–98', source:'STRIBROK+ISM Report+ARMADA, combined analysis', date:'02.09.26'}], charterersIdeas:[], updatedAt:'02.09.26'},
-        {id:'w5', label:'Danube → Lebanon / Syria', direction:'outbound', low:93, high:98, unit:'$/mt',
-          ownersIdeas:[{text:'$93–98', source:'STRIBROK+ISM Report+ARMADA, combined analysis', date:'02.09.26'}], charterersIdeas:[], updatedAt:'02.09.26'},
-        {id:'w6', label:'Danube → Tunisia', direction:'outbound', low:102, high:108, unit:'$/mt',
-          ownersIdeas:[{text:'$102–108', source:'STRIBROK+ISM Report+ARMADA, combined analysis', date:'02.09.26'}], charterersIdeas:[], updatedAt:'02.09.26'},
-        {id:'w7', label:'Danube → EC Italy', direction:'outbound', low:109, high:116, unit:'$/mt',
-          ownersIdeas:[{text:'$109–116', source:'STRIBROK+ISM Report+ARMADA, combined analysis', date:'02.09.26'}], charterersIdeas:[], updatedAt:'02.09.26'}
+        {id:'w_mar6', label:'Danube (Izmail) → Marmara (6,000t lot)', direction:'outbound', low:78, high:82, unit:'$/mt',
+          ownersIdeas:[{text:'Up +53–55% since 20.08 benchmark', source:'STRIBROK+ISM Report+ARMADA, combined analysis', date:'02.09.26'}],
+          charterersIdeas:[{text:'Izmail → Marmara/Egypt $65 (5,000–10,000t)', source:'Katana Trade LTD, cargo order', date:'04.08.26'}],
+          updatedAt:'02.09.26'},
+        {id:'w_tur3', label:'Danube → Turkey Mersin/Iskenderun (3,000t lot)', direction:'outbound', low:85, high:85, unit:'$/mt',
+          ownersIdeas:[{text:'Up +63% since 24.07', source:'STRIBROK+ISM Report+ARMADA, combined analysis', date:'02.09.26'}],
+          charterersIdeas:[{text:'Izmail → Mersin "70+" (4,000–8,000t)', source:'Hermes-Trading LLC, cargo order', date:'28.08.26'}],
+          updatedAt:'02.09.26'},
+        {id:'w_tur6', label:'Danube → Turkey Mersin/Iskenderun (6,000t lot)', direction:'outbound', low:93, high:98, unit:'$/mt',
+          ownersIdeas:[{text:'Up +41–48% since 14.08', source:'STRIBROK+ISM Report+ARMADA, combined analysis', date:'02.09.26'}],
+          charterersIdeas:[], updatedAt:'02.09.26'},
+        {id:'w_egy3', label:'Danube → Egypt Med (3,000t lot)', direction:'outbound', low:85, high:85, unit:'$/mt',
+          ownersIdeas:[{text:'Same price band as Turkey Mersin/Iskenderun (Post-Dardanelles)', source:'STRIBROK+ISM Report+ARMADA, combined analysis', date:'02.09.26'}],
+          charterersIdeas:[{text:'Izmail/Galati → Egypt Med $67', source:'Hermes-Trading LLC, cargo order', date:'20.08.26'}],
+          updatedAt:'02.09.26'},
+        {id:'w_egy6', label:'Danube → Egypt Med (6,000t lot)', direction:'outbound', low:93, high:100, unit:'$/mt',
+          ownersIdeas:[{text:'Confirmed real fixture 02.09.26', source:'internal fixture log / chat', date:'02.09.26'},
+                       {text:'Up +232% over 2 months (02.07: $28 -> 02.09: $93)', source:'STRIBROK+ISM Report+ARMADA, combined analysis', date:'02.09.26'}],
+          charterersIdeas:[{text:'Izmail/Reni → Tartus/Tripoli/Egypt $82 (5,400–6,600t)', source:'AGROTRADING/AGROFOND, cargo order', date:'21.08.26'}],
+          updatedAt:'02.09.26'},
+        {id:'w_cyp', label:'Danube → Cyprus / Famagusta', direction:'outbound', low:93, high:98, unit:'$/mt',
+          ownersIdeas:[{text:'STRIBROK+ISM Report+ARMADA, combined analysis', source:'STRIBROK+ISM Report+ARMADA', date:'02.09.26'}],
+          charterersIdeas:[], updatedAt:'02.09.26'},
+        {id:'w_leb', label:'Danube → Lebanon / Syria', direction:'outbound', low:93, high:98, unit:'$/mt',
+          ownersIdeas:[{text:'STRIBROK+ISM Report+ARMADA, combined analysis', source:'STRIBROK+ISM Report+ARMADA', date:'02.09.26'}],
+          charterersIdeas:[], updatedAt:'02.09.26'},
+        {id:'w_isr', label:'Danube → Israel', direction:'outbound', low:93, high:98, unit:'$/mt',
+          ownersIdeas:[{text:'Calculated: same price band as Cyprus/Lebanon-Syria, Post-Dardanelles ports trade together (estimate)', source:'internal calculation', date:'11.09.26'}],
+          charterersIdeas:[], updatedAt:'11.09.26'},
+        {id:'w_rom', label:'Romania (ex Braila/Constanta, no Danube premium)', direction:'outbound', low:32, high:45, unit:'$/mt',
+          ownersIdeas:[{text:'Braila → Larnaca $32–34; Constanta → Marmara (6,000t) $40–45. No war/logistics premium here (unlike Izmail/Reni/Kiliya)', source:'internal calibration, broker management', date:'09.26'}],
+          charterersIdeas:[], updatedAt:'09.26'},
+        {id:'w_ecgr', label:'Danube → EC Greece', direction:'outbound', low:83, high:87, unit:'$/mt',
+          ownersIdeas:[{text:'STRIBROK+ISM Report+ARMADA, combined analysis', source:'STRIBROK+ISM Report+ARMADA', date:'02.09.26'}],
+          charterersIdeas:[{text:'Izmail/Reni → Greece ECG $64 (2,700–3,300t)', source:'MHP Food Trading LLC, cargo order', date:'19.08.26'}],
+          updatedAt:'02.09.26'},
+        {id:'w_wcgr', label:'Danube → WC Greece', direction:'outbound', low:87, high:91, unit:'$/mt',
+          ownersIdeas:[{text:'STRIBROK+ISM Report+ARMADA, combined analysis', source:'STRIBROK+ISM Report+ARMADA', date:'02.09.26'}],
+          charterersIdeas:[{text:'Izmail/Reni → Greece WCG $71 (2,700–3,300t)', source:'MHP Food Trading LLC, cargo order', date:'19.08.26'}],
+          updatedAt:'02.09.26'},
+        {id:'w_tun', label:'Danube → Tunisia', direction:'outbound', low:102, high:108, unit:'$/mt',
+          ownersIdeas:[{text:'STRIBROK+ISM Report+ARMADA, combined analysis', source:'STRIBROK+ISM Report+ARMADA', date:'02.09.26'}],
+          charterersIdeas:[], updatedAt:'02.09.26'},
+        {id:'w_it', label:'Danube → EC Italy', direction:'outbound', low:109, high:116, unit:'$/mt',
+          ownersIdeas:[{text:'STRIBROK+ISM Report+ARMADA, combined analysis', source:'STRIBROK+ISM Report+ARMADA', date:'02.09.26'}],
+          charterersIdeas:[], updatedAt:'02.09.26'},
+        {id:'w_wmed', label:'Danube → WMed (Spain)', direction:'outbound', low:115, high:125, unit:'$/mt',
+          ownersIdeas:[{text:'Calculated: extrapolated past EC Italy by the same increment seen Tunisia -> Italy (estimate)', source:'internal calculation', date:'11.09.26'}],
+          charterersIdeas:[], updatedAt:'11.09.26'}
       ]},
       corn:{label:'Corn (SF ~49-52)', routes:[
         {id:'c1', label:'Danube (Izmail) → Cyprus (Larnaca)', direction:'outbound', low:82, high:82, unit:'$/mt',
@@ -676,6 +731,47 @@ function ideaHtml(list,cls,titleText){
   return `<div class="idea-block"><div class="idea-block-title ${cls}">${titleText}</div>${inner}</div>`;
 }
 
+function cargoHasBothDirections(cargo){
+  const dirs=new Set((cargo.routes||[]).map(r=>r.direction));
+  return dirs.has('outbound') && dirs.has('backhaul');
+}
+
+function tileSubtitle(r){
+  const owner=(r.ownersIdeas&&r.ownersIdeas[0])||null;
+  const charterer=(r.charterersIdeas&&r.charterersIdeas[0])||null;
+  const pick=owner||charterer;
+  if(!pick) return {cls:'empty', text:'no data yet · '+escapeHtml(r.updatedAt||'-')};
+  const isEstimate=/\(estimate\)/i.test(pick.text);
+  const cls=isEstimate?'estimate':(pick===owner?'owners':'charterers');
+  const label=isEstimate?'calc':(pick===owner?'owners':'charterers');
+  const date=pick.date||r.updatedAt||'-';
+  return {cls, text:escapeHtml(label)+' · '+escapeHtml(date)};
+}
+
+function buildTileGridHtml(routes){
+  let html=routes.map(r=>{
+    const sub=tileSubtitle(r);
+    return `
+    <div class="tile" data-rid="${r.id}">
+      <p class="tile-label">${escapeHtml(r.label)}</p>
+      <div class="tile-value" data-rid="${r.id}" title="Click to edit range">${r.low===r.high? r.low : r.low+'–'+r.high}<span class="unit">${escapeHtml(r.unit||'$/mt')}</span></div>
+      <p class="tile-sub ${sub.cls}">${sub.text}</p>
+      <div class="tile-foot">
+        <button class="tile-expand-btn" data-rid="${r.id}">details</button>
+      </div>
+      <div class="tile-detail" data-rid="${r.id}" style="display:none">
+        ${ideaHtml(r.ownersIdeas,'owners','Owners idea')}
+        <button class="idea-add-btn" data-rid="${r.id}" data-kind="ownersIdeas">＋ add owners idea</button>
+        ${ideaHtml(r.charterersIdeas,'charterers','Charterers idea')}
+        <button class="idea-add-btn" data-rid="${r.id}" data-kind="charterersIdeas">＋ add charterers idea</button>
+        <button class="card-del-route" data-rid="${r.id}">Delete direction</button>
+      </div>
+    </div>`;
+  }).join('');
+  html+=`<div class="tile-add-card" id="add-route-card">＋ Add direction</div>`;
+  return html;
+}
+
 function buildCardsHtml(routes){
   let cardsHtml=routes.map(r=>`
     <div class="indication-card" data-rid="${r.id}">
@@ -696,20 +792,23 @@ function renderBoardMain(){
   const wrap=document.getElementById('main-wrap');
   const cargo=activeCargoObj();
   if(!cargo){wrap.innerHTML='<div class="empty-state">No data for this cargo</div>';return;}
-  const routes=visibleRoutes(cargo);
+  const showToggle=cargoHasBothDirections(cargo);
+  const routes=showToggle?visibleRoutes(cargo):(cargo.routes||[]);
 
   wrap.innerHTML=`
     <div class="board-layout">
       <div>
-        <div class="hint-box">Data below is sourced from STRIBROK / ISM Report / ARMADA Chartering, EMA Ship Management and the internal cargo-order log (as of 02.09.26). Click a number to edit it manually, or use the AI panel on the right to recalculate using live mail and web data.</div>
+        <div class="hint-box">Data below is sourced from STRIBROK / ISM Report / ARMADA Chartering, EMA Ship Management and the internal cargo-order log. Click a number to edit it manually, or use the AI panel on the right (or the chat with the CGL Indications connector enabled) to recalculate using live mail, the knowledge base, and web data.</div>
         <div class="board-toolbar">
-          <div class="direction-toggle">
+          ${showToggle?`<div class="direction-toggle">
             <button class="direction-btn" data-dir="outbound" id="dir-outbound-btn">Outbound</button>
             <button class="direction-btn" data-dir="backhaul" id="dir-backhaul-btn">Backhaul</button>
-          </div>
+          </div>`:`<div></div>`}
           <button class="export-btn" id="export-pdf-btn">📄 Export PDF</button>
         </div>
-        <div class="indication-grid" id="indication-grid">${buildCardsHtml(routes)}</div>
+        <div class="tile-board-card">
+          <div class="tile-grid" id="indication-grid">${buildTileGridHtml(routes)}</div>
+        </div>
       </div>
       <div>
         <div class="card ai-panel">
@@ -747,7 +846,7 @@ function renderBoardMain(){
     </div>`;
 
   attachBoardHandlers();
-  updateDirectionButtons();
+  if(showToggle) updateDirectionButtons();
   renderNotesList();
   renderAiHistory();
   updateKeyStatus();
@@ -769,7 +868,7 @@ function attachBoardHandlers(){
   const exportBtn=document.getElementById('export-pdf-btn');
   if(exportBtn) exportBtn.onclick=openExportModal;
 
-  document.querySelectorAll('.indication-big').forEach(el=>{
+  document.querySelectorAll('.tile-value').forEach(el=>{
     el.addEventListener('click',()=>{
       const rid=el.dataset.rid;
       const cargo=activeCargoObj();
@@ -782,6 +881,18 @@ function attachBoardHandlers(){
       route.high=nums.length>1?parseFloat(nums[1]):route.low;
       route.updatedAt=todayStr();
       saveState();renderIndicationGridOnly();
+    });
+  });
+  document.querySelectorAll('.tile-expand-btn').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const rid=btn.dataset.rid;
+      const tile=document.querySelector('.tile[data-rid="'+rid+'"]');
+      const detail=document.querySelector('.tile-detail[data-rid="'+rid+'"]');
+      if(!tile||!detail)return;
+      const open=detail.style.display!=='none';
+      detail.style.display=open?'none':'block';
+      tile.classList.toggle('expanded',!open);
+      btn.textContent=open?'details':'hide';
     });
   });
   document.querySelectorAll('.idea-add-btn').forEach(btn=>{
@@ -816,7 +927,8 @@ function attachBoardHandlers(){
     const low=nums&&nums.length?parseFloat(nums[0]):0;
     const high=nums&&nums.length>1?parseFloat(nums[1]):low;
     const cargo=activeCargoObj();
-    cargo.routes.push({id:'r'+Date.now(), label:label.trim(), direction:state.board.activeDirection, low, high, unit:'$/mt', ownersIdeas:[], charterersIdeas:[], updatedAt:todayStr()});
+    const dir=cargoHasBothDirections(cargo)?state.board.activeDirection:((cargo.routes[0]&&cargo.routes[0].direction)||'outbound');
+    cargo.routes.push({id:'r'+Date.now(), label:label.trim(), direction:dir, low, high, unit:'$/mt', ownersIdeas:[], charterersIdeas:[], updatedAt:todayStr()});
     saveState();renderIndicationGridOnly();
   };
   const saveNoteBtn=document.getElementById('save-note-btn');
@@ -840,10 +952,12 @@ function renderIndicationGridOnly(){
   const cargo=activeCargoObj();
   const gridEl=document.getElementById('indication-grid');
   if(!cargo || !gridEl) return;
-  gridEl.innerHTML=buildCardsHtml(visibleRoutes(cargo));
+  const showToggle=cargoHasBothDirections(cargo);
+  const routes=showToggle?visibleRoutes(cargo):(cargo.routes||[]);
+  gridEl.innerHTML=buildTileGridHtml(routes);
   attachBoardHandlers();
   renderCargoPills();
-  updateDirectionButtons();
+  if(showToggle) updateDirectionButtons();
 }
 
 function renderNotesList(){
