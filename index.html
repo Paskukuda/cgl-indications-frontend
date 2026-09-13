@@ -30,7 +30,7 @@ body::-webkit-scrollbar-thumb,*::-webkit-scrollbar-thumb{background:var(--border
 body,*{scrollbar-width:thin;scrollbar-color:var(--border) transparent}
 
 .tab-bar{background:var(--tab-bg);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:110}
-.tab-bar-inner{max-width:1180px;margin:0 auto;padding:0 20px;display:flex;align-items:center;gap:12px;height:54px}
+.tab-bar-inner{max-width:1180px;margin:0 auto;padding:0 20px;display:flex;align-items:center;gap:14px;height:54px;flex-wrap:nowrap;overflow-x:auto}
 .tab-bar-brand{font-size:13px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;display:flex;align-items:center;gap:8px;white-space:nowrap}
 .tab-bar-brand b{color:var(--text)}
 .autosave-msg{font-size:11px;color:var(--success);opacity:0;transition:opacity .3s;white-space:nowrap}
@@ -39,12 +39,11 @@ body,*{scrollbar-width:thin;scrollbar-color:var(--border) transparent}
 .theme-toggle{display:flex;align-items:center;justify-content:center;width:34px;height:34px;border:0.5px solid var(--border);border-radius:8px;background:transparent;cursor:pointer;color:var(--text-muted);font-size:16px;flex-shrink:0}
 .theme-toggle:hover{background:var(--input-bg);color:var(--text)}
 
-.main-tab-bar{background:var(--tab-bg);border-bottom:1px solid var(--border);position:sticky;top:54px;z-index:105}
-.main-tab-bar-inner{max-width:1180px;margin:0 auto;padding:10px 20px;display:flex;gap:8px}
-.main-tab-btn{padding:9px 16px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text-muted);font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit}
+.main-tab-bar{display:flex;gap:8px;flex-shrink:0}
+.main-tab-btn{padding:8px 14px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text-muted);font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit}
 .main-tab-btn.active{background:var(--btn-dark-bg);color:var(--btn-dark-fg);border-color:transparent}
 
-.voyage-bar{background:var(--tab-bg);border-bottom:1px solid var(--border);position:sticky;top:98px;z-index:99}
+.voyage-bar{background:var(--tab-bg);border-bottom:1px solid var(--border);position:sticky;top:54px;z-index:99}
 .voyage-bar-inner{max-width:1180px;margin:0 auto;padding:10px 20px;display:flex;align-items:center;gap:8px;overflow-x:auto}
 .voyage-pill{display:flex;align-items:center;gap:8px;padding:7px 12px;border-radius:20px;border:1.5px solid var(--border);background:var(--card);cursor:pointer;font-size:12px;font-weight:600;color:var(--text-muted);white-space:nowrap}
 .voyage-pill.active{background:var(--btn-dark-bg);color:var(--btn-dark-fg);border-color:transparent}
@@ -53,7 +52,7 @@ body,*{scrollbar-width:thin;scrollbar-color:var(--border) transparent}
 .voyage-pill .del-x:hover{opacity:1;color:var(--err)}
 .add-voyage-btn{flex-shrink:0;padding:7px 14px;border-radius:20px;border:1.5px dashed var(--border);background:transparent;color:var(--text-muted);font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap}
 
-.cargo-bar{background:var(--tab-bg);border-bottom:1px solid var(--border);position:sticky;top:98px;z-index:99}
+.cargo-bar{background:var(--tab-bg);border-bottom:1px solid var(--border);position:sticky;top:54px;z-index:99}
 .cargo-bar-inner{max-width:1180px;margin:0 auto;padding:10px 20px;display:flex;align-items:center;gap:8px;overflow-x:auto}
 .cargo-pill{display:flex;align-items:center;gap:8px;padding:7px 14px;border-radius:20px;border:1.5px solid var(--border);background:var(--card);cursor:pointer;font-size:12px;font-weight:600;color:var(--text-muted);white-space:nowrap}
 .cargo-pill.active{background:var(--btn-dark-bg);color:var(--btn-dark-fg);border-color:transparent}
@@ -119,7 +118,12 @@ body,*{scrollbar-width:thin;scrollbar-color:var(--border) transparent}
 .tile-add-card{border:1.5px dashed var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;min-height:64px;color:var(--text-muted);font-size:11.5px;font-weight:600;cursor:pointer;background:transparent}
 .tile-add-card:hover{border-color:var(--val-outline);color:var(--text)}
 
-.ai-panel{position:sticky;top:150px}
+.ai-panel{}
+.ai-panel summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;padding:0 0 10px}
+.ai-panel summary::-webkit-details-marker{display:none}
+.ai-panel summary .chev{transition:transform .18s;color:var(--text-muted);font-size:11px}
+.ai-panel[open] summary .chev{transform:rotate(90deg)}
+.ai-panel summary .section-title{margin-bottom:0}
 .ai-panel-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
 .ai-panel-head .section-title{margin-bottom:0}
 .gear-btn{background:none;border:none;cursor:pointer;font-size:14px;color:var(--text-muted);padding:2px}
@@ -232,7 +236,6 @@ details.section summary .sec-count.all-done{color:var(--success);background:var(
   .tab-bar-inner{padding:0 12px;gap:6px}
   .tab-bar-brand{font-size:10.5px}
   .autosave-msg{font-size:9.5px;max-width:90px;overflow:hidden;text-overflow:ellipsis}
-  .main-tab-bar-inner{padding:8px 12px}
   .main-tab-btn{padding:8px 12px;font-size:11.5px}
   .voyage-bar-inner,.cargo-bar-inner{padding:8px 12px}
   .voyage-pill,.cargo-pill{padding:8px 12px;font-size:12px}
@@ -253,18 +256,15 @@ details.section summary .sec-count.all-done{color:var(--success);background:var(
 <div class="tab-bar">
   <div class="tab-bar-inner">
     <div class="tab-bar-brand">⚓ <b>Chayka Group Logistic (CGL) Indications</b></div>
+    <div class="main-tab-bar" id="main-tab-bar">
+      <button class="main-tab-btn" id="tab-board-btn" onclick="setMainTab('board')">📊 Indications</button>
+      <button class="main-tab-btn" id="tab-checklist-btn" onclick="setMainTab('checklist')">✅ Voyage Checklist</button>
+    </div>
     <span class="autosave-msg" id="autosave-msg">✓ saved</span>
     <div class="tab-spacer"></div>
     <button class="logout-btn" id="refresh-btn" onclick="refreshFromServer()" title="Refresh from server" style="display:none">🔄</button>
     <button class="logout-btn" id="logout-btn" onclick="logout()" title="Log out" style="display:none">🔒</button>
     <button class="theme-toggle" onclick="toggleTheme()" id="theme-btn" title="Toggle theme">🌙</button>
-  </div>
-</div>
-
-<div class="main-tab-bar" id="main-tab-bar">
-  <div class="main-tab-bar-inner">
-    <button class="main-tab-btn" id="tab-board-btn" onclick="setMainTab('board')">📊 Indications</button>
-    <button class="main-tab-btn" id="tab-checklist-btn" onclick="setMainTab('checklist')">✅ Voyage Checklist</button>
   </div>
 </div>
 
@@ -811,25 +811,25 @@ function renderBoardMain(){
         </div>
       </div>
       <div>
-        <div class="card ai-panel">
-          <p class="section-title">Manual note</p>
+        <details class="card ai-panel" open>
+          <summary><span class="chev">▶</span><span class="section-title">Manual note</span></summary>
           <textarea class="ai-textarea" id="note-input" placeholder="E.g.: yesterday MHP fixed MV MARIA S at $100 ex Reni to Lebanon — FYI"></textarea>
           <div style="margin-top:8px"><button class="btn-ghost" id="save-note-btn" style="width:100%">Save note</button></div>
           <div id="notes-list" style="margin-top:10px;max-height:160px;overflow-y:auto"></div>
-        </div>
-        <div class="card ai-panel" style="margin-top:14px">
-          <p class="section-title">Knowledge base (reports & circulars)</p>
+        </details>
+        <details class="card ai-panel" style="margin-top:14px" open>
+          <summary><span class="chev">▶</span><span class="section-title">Knowledge base (reports &amp; circulars)</span></summary>
           <div class="field" style="margin-bottom:6px"><input type="text" id="doc-title-input" placeholder="Title, e.g. STRIBROK week 36"></div>
           <textarea class="ai-textarea" id="doc-content-input" placeholder="Paste the full report/circular text here — STRIBROK, EMA, Sea Lines, cargo-order lists, etc."></textarea>
           <div style="margin-top:8px"><button class="btn-ghost" id="save-doc-btn" style="width:100%">Save document</button></div>
           <div class="ai-status" id="doc-status"></div>
           <div id="doc-list" style="margin-top:10px;max-height:220px;overflow-y:auto"></div>
-        </div>
-        <div class="card ai-panel" style="margin-top:14px">
-          <div class="ai-panel-head">
-            <p class="section-title">AI request — recalculate indication</p>
-            <button class="gear-btn" id="ai-settings-btn" title="API key settings">⚙</button>
-          </div>
+        </details>
+        <details class="card ai-panel" style="margin-top:14px" open>
+          <summary>
+            <span class="chev">▶</span><span class="section-title">AI request — recalculate indication</span>
+            <button class="gear-btn" id="ai-settings-btn" title="API key settings" style="margin-left:auto">⚙</button>
+          </summary>
           <textarea class="ai-textarea" id="ai-input" placeholder="E.g.: recalculate the Danube-Marmara rate using this week's emails"></textarea>
           <div class="ai-toggle-row">
             <label class="ai-toggle"><input type="checkbox" id="ai-use-mail" checked> mail (Gmail)</label>
@@ -841,7 +841,7 @@ function renderBoardMain(){
           <div id="ai-summary-wrap"></div>
           <div class="ai-key-status" id="ai-key-status"></div>
           <div id="ai-history" style="margin-top:10px;max-height:200px;overflow-y:auto"></div>
-        </div>
+        </details>
       </div>
     </div>`;
 
@@ -945,7 +945,7 @@ function attachBoardHandlers(){
   const aiRunBtn=document.getElementById('ai-run-btn');
   if(aiRunBtn) aiRunBtn.onclick=runAiRecalc;
   const settingsBtn=document.getElementById('ai-settings-btn');
-  if(settingsBtn) settingsBtn.onclick=openApiKeySettings;
+  if(settingsBtn) settingsBtn.onclick=(e)=>{e.preventDefault(); e.stopPropagation(); openApiKeySettings();};
 }
 
 function renderIndicationGridOnly(){
