@@ -1271,6 +1271,13 @@ function openExportModal(){
   document.getElementById('export-generate-btn').onclick=()=>generateIndicationsPdf(backdrop);
 }
 
+function pdfSafeText(s){
+  // The default jsPDF font (Helvetica/WinAnsi) can't render the arrow
+  // glyph (→) or a few other symbols — swap them for plain ASCII so the
+  // PDF doesn't show garbled characters.
+  return String(s).replace(/→/g,'->').replace(/⋯/g,'...');
+}
+
 function generateIndicationsPdf(backdrop){
   const rows=[];
   backdrop.querySelectorAll('.exp-check:checked').forEach(cb=>{
@@ -1281,7 +1288,7 @@ function generateIndicationsPdf(backdrop){
     const qtyInput=backdrop.querySelector('.exp-qty[data-cid="'+cid+'"][data-rid="'+rid+'"]');
     const qty=(qtyInput && qtyInput.value.trim()) || '—';
     const rateStr=(route.low===route.high?route.low:route.low+'–'+route.high)+' '+(route.unit||'$/mt');
-    rows.push({direction:route.label+' ('+cargo.label+')', qty, rate:rateStr});
+    rows.push({direction:pdfSafeText(route.label)+' ('+pdfSafeText(cargo.label)+')', qty, rate:rateStr});
   });
   if(!rows.length){alert('Select at least one direction.');return;}
   if(!window.jspdf){alert('PDF library did not load — check your internet connection and try again.');return;}
