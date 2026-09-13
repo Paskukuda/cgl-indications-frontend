@@ -53,7 +53,8 @@ body,*{scrollbar-width:thin;scrollbar-color:var(--border) transparent}
 .add-voyage-btn{flex-shrink:0;padding:7px 14px;border-radius:20px;border:1.5px dashed var(--border);background:transparent;color:var(--text-muted);font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap}
 
 .cargo-bar{background:var(--tab-bg);border-bottom:1px solid var(--border);position:sticky;top:54px;z-index:99}
-.cargo-bar-inner{max-width:1180px;margin:0 auto;padding:10px 20px;display:flex;align-items:center;gap:8px;overflow-x:auto}
+.cargo-bar-inner{max-width:1180px;margin:0 auto;padding:10px 20px;display:flex;align-items:center;gap:10px}
+.cargo-pills-scroll{display:flex;align-items:center;gap:8px;overflow-x:auto;flex:1;min-width:0}
 .cargo-pill{display:flex;align-items:center;gap:8px;padding:7px 14px;border-radius:20px;border:1.5px solid var(--border);background:var(--card);cursor:pointer;font-size:12px;font-weight:600;color:var(--text-muted);white-space:nowrap}
 .cargo-pill.active{background:var(--btn-dark-bg);color:var(--btn-dark-fg);border-color:transparent}
 .cargo-pill .del-x{opacity:.45;font-size:12px}
@@ -68,7 +69,7 @@ body,*{scrollbar-width:thin;scrollbar-color:var(--border) transparent}
 .direction-toggle{display:flex;gap:6px}
 .direction-btn{padding:8px 16px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text-muted);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit}
 .direction-btn.active{background:var(--btn-dark-bg);color:var(--btn-dark-fg);border-color:transparent}
-.export-btn{padding:8px 16px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit}
+.export-btn{padding:8px 16px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0}
 .export-btn:hover{background:var(--input-bg)}
 
 .board-layout{display:grid;grid-template-columns:1fr 340px;gap:16px;align-items:start}
@@ -269,7 +270,10 @@ details.section summary .sec-count.all-done{color:var(--success);background:var(
 </div>
 
 <div class="cargo-bar" id="cargo-bar" style="display:none">
-  <div class="cargo-bar-inner" id="cargo-pills"></div>
+  <div class="cargo-bar-inner">
+    <div class="cargo-pills-scroll" id="cargo-pills"></div>
+    <button class="export-btn" id="export-pdf-btn" title="Export current indications to PDF">📄 Export PDF</button>
+  </div>
 </div>
 
 <div class="voyage-bar" id="voyage-bar" style="display:none">
@@ -799,13 +803,12 @@ function renderBoardMain(){
     <div class="board-layout">
       <div>
         <div class="hint-box">Data below is sourced from STRIBROK / ISM Report / ARMADA Chartering, EMA Ship Management and the internal cargo-order log. Click a number to edit it manually, or use the AI panel on the right (or the chat with the CGL Indications connector enabled) to recalculate using live mail, the knowledge base, and web data.</div>
-        <div class="board-toolbar">
-          ${showToggle?`<div class="direction-toggle">
+        ${showToggle?`<div class="board-toolbar">
+          <div class="direction-toggle">
             <button class="direction-btn" data-dir="outbound" id="dir-outbound-btn">Outbound</button>
             <button class="direction-btn" data-dir="backhaul" id="dir-backhaul-btn">Backhaul</button>
-          </div>`:`<div></div>`}
-          <button class="export-btn" id="export-pdf-btn">📄 Export PDF</button>
-        </div>
+          </div>
+        </div>`:''}
         <div class="tile-board-card">
           <div class="tile-grid" id="indication-grid">${buildTileGridHtml(routes)}</div>
         </div>
