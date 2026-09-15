@@ -305,9 +305,9 @@ function todayStr(){
 function getPanelOpenState(){
   try{
     const raw=safeStorage.getItem('cgl_panels_open');
-    if(raw) return Object.assign({note:true,kb:true,ai:true}, JSON.parse(raw));
+    if(raw) return Object.assign({note:true,kb:true,ai:true,lumpsum:true}, JSON.parse(raw));
   }catch(e){}
-  return {note:true,kb:true,ai:true};
+  return {note:true,kb:true,ai:true,lumpsum:true};
 }
 function setPanelOpenState(key,isOpen){
   const s=getPanelOpenState();
@@ -315,11 +315,50 @@ function setPanelOpenState(key,isOpen){
   safeStorage.setItem('cgl_panels_open', JSON.stringify(s));
 }
 function attachPanelToggleListeners(){
-  const map={'panel-note':'note','panel-kb':'kb','panel-ai':'ai'};
+  const map={'panel-note':'note','panel-kb':'kb','panel-ai':'ai','panel-lumpsum':'lumpsum'};
   Object.keys(map).forEach(id=>{
     const el=document.getElementById(id);
     if(el) el.addEventListener('toggle', ()=>{ setPanelOpenState(map[id], el.open); });
   });
+}
+
+/* ── Lumpsum calculator (sidebar) ──
+   Lumpsum = base_rate * base_qty (fixed per voyage).
+   target_qty = entered vessel capacity if given, else base_qty * base_SF / target_SF
+   (cube-proportional estimate — the fallback when the real grain-capacity
+   table for that SF isn't known).
+   new_rate = Lumpsum / target_qty */
+function computeLumpsum(){
+  const resEl=document.getElementById('lc-result');
+  if(!resEl) return;
+  const rate=parseFloat(document.getElementById('lc-base-rate').value);
+  const qty=parseFloat(document.getElementById('lc-base-qty').value);
+  const baseSf=parseFloat(document.getElementById('lc-base-sf').value);
+  const targetSf=parseFloat(document.getElementById('lc-target-sf').value);
+  const targetCapRaw=document.getElementById('lc-target-cap').value;
+  const targetCap=targetCapRaw!==''?parseFloat(targetCapRaw):null;
+  if(!rate || !qty || !baseSf || !targetSf){
+    resEl.innerHTML='<div class="idea-empty">enter base rate, quantity, base SF and target SF</div>';
+    return;
+  }
+  const lumpsum=rate*qty;
+  const usedCapacity=(targetCap && targetCap>0);
+  const targetQty=usedCapacity?targetCap:(qty*baseSf/targetSf);
+  if(!targetQty){ resEl.innerHTML='<div class="idea-empty">check the numbers — target quantity came out as 0</div>'; return; }
+  const newRate=lumpsum/targetQty;
+  const method=usedCapacity?'using the vessel capacity you entered':'estimated via SF ratio (assumes capacity scales with cube)';
+  resEl.innerHTML=`<div class="ai-summary-box">
+    <div>Lumpsum: <b>$${lumpsum.toLocaleString(undefined,{maximumFractionDigits:0})}</b></div>
+    <div>Target quantity: <b>${targetQty.toLocaleString(undefined,{maximumFractionDigits:0})} t</b> <span style="color:var(--text-muted);font-size:10px">(${escapeHtml(method)})</span></div>
+    <div style="margin-top:6px;font-size:16px">New rate: <b>$${newRate.toFixed(2)}/mt</b></div>
+  </div>`;
+}
+function attachLumpsumCalc(){
+  ['lc-base-rate','lc-base-qty','lc-base-sf','lc-target-sf','lc-target-cap'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.addEventListener('input', computeLumpsum);
+  });
+  computeLumpsum();
 }
 function escapeHtml(s){return (s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 
@@ -900,11 +939,24 @@ function renderBoardMain(){
           <div class="ai-key-status" id="ai-key-status"></div>
           <div id="ai-history" style="margin-top:10px;max-height:200px;overflow-y:auto"></div>
         </details>
+        <details class="card ai-panel" id="panel-lumpsum" style="margin-top:14px" ${panelState.lumpsum?'open':''}>
+          <summary><span class="chev">▶</span><span class="section-title">Lumpsum calculator</span></summary>
+          <div class="hint-box" style="margin-bottom:10px">Lumpsum method: the freight sum per voyage stays fixed — a different stowage factor (SF) just changes how much cargo fits the same hold space. See the "Lumpsum calculation" tile in IND FAQ for the full explanation.</div>
+          <div class="field-grid">
+            <div class="field"><label>Base rate, $/mt</label><input type="number" id="lc-base-rate" step="0.01" placeholder="e.g. 100"></div>
+            <div class="field"><label>Base qty, t</label><input type="number" id="lc-base-qty" step="1" placeholder="e.g. 3150"></div>
+            <div class="field"><label>Base SF</label><input type="number" id="lc-base-sf" step="0.1" placeholder="e.g. 47"></div>
+            <div class="field"><label>Target SF</label><input type="number" id="lc-target-sf" step="0.1" placeholder="e.g. 58"></div>
+          </div>
+          <div class="field" style="margin-top:10px"><label>Target vessel capacity, t (optional)</label><input type="number" id="lc-target-cap" step="1" placeholder="leave blank to estimate from SF ratio"></div>
+          <div id="lc-result" style="margin-top:12px"></div>
+        </details>
       </div>
     </div>`;
 
   attachBoardHandlers();
   attachPanelToggleListeners();
+  attachLumpsumCalc();
   if(state.board.faqMode) attachFaqHandlers();
   if(showToggle) updateDirectionButtons();
   renderNotesList();
