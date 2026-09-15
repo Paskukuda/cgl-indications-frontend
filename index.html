@@ -70,6 +70,11 @@ body,*{scrollbar-width:thin;scrollbar-color:var(--border) transparent}
 .direction-btn{padding:8px 16px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text-muted);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit}
 .direction-btn.active{background:var(--btn-dark-bg);color:var(--btn-dark-fg);border-color:transparent}
 .export-btn{padding:8px 16px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0}
+.export-btn.active{background:var(--btn-dark-bg);color:var(--btn-dark-fg);border-color:transparent}
+
+/* FAQ view */
+.faq-select{margin-bottom:6px}
+.faq-select select{font-size:12px;border:1px solid var(--border);border-radius:6px;padding:6px 8px;background:var(--input-bg);color:var(--text);font-family:inherit;width:100%}
 .export-btn:hover{background:var(--input-bg)}
 
 .board-layout{display:grid;grid-template-columns:1fr 340px;gap:16px;align-items:start}
@@ -272,6 +277,7 @@ details.section summary .sec-count.all-done{color:var(--success);background:var(
 <div class="cargo-bar" id="cargo-bar" style="display:none">
   <div class="cargo-bar-inner">
     <div class="cargo-pills-scroll" id="cargo-pills"></div>
+    <button class="export-btn" id="ind-faq-btn" title="Show grouped background info (General / Real data / Claude calc / Lumpsum calc)">📚 IND FAQ</button>
     <button class="export-btn" id="export-pdf-btn" title="Export current indications to PDF">📄 Export PDF</button>
   </div>
 </div>
@@ -625,6 +631,12 @@ const SECTIONS = [
   ]}
 ];
 const NOA_STAGES = [['5','5 days'],['3','3 days'],['2','2 days'],['1','1 day'],['12h','12 hrs'],['6h','6 hrs']];
+const FAQ_CATEGORIES=[
+  {id:'general', label:'General Information'},
+  {id:'real', label:'Real data'},
+  {id:'claude_calc', label:'Claude calculation'},
+  {id:'lumpsum', label:'Lumpsum calculation'}
+];
 
 /* ══════════════════════════════════════════════════════════
    STATE
@@ -656,6 +668,7 @@ function normalizeState(){
   if(!state.board.activeDirection) state.board.activeDirection='outbound';
   if(!state.board.notes) state.board.notes=[];
   if(!state.board.aiHistory) state.board.aiHistory=[];
+  if(typeof state.board.faqMode!=='boolean') state.board.faqMode=false;
   // defensive migration: ensure every route has a direction
   Object.values(state.board.cargoData).forEach(c=>{
     (c.routes||[]).forEach(r=>{ if(!r.direction) r.direction='outbound'; });
@@ -795,13 +808,15 @@ function buildCardsHtml(routes){
 function renderBoardMain(){
   const wrap=document.getElementById('main-wrap');
   const cargo=activeCargoObj();
-  if(!cargo){wrap.innerHTML='<div class="empty-state">No data for this cargo</div>';return;}
-  const showToggle=cargoHasBothDirections(cargo);
-  const routes=showToggle?visibleRoutes(cargo):(cargo.routes||[]);
+  if(!cargo && !state.board.faqMode){wrap.innerHTML='<div class="empty-state">No data for this cargo</div>';return;}
+  const showToggle=cargo?cargoHasBothDirections(cargo):false;
+  const routes=cargo?(showToggle?visibleRoutes(cargo):(cargo.routes||[])):[];
 
-  wrap.innerHTML=`
-    <div class="board-layout">
-      <div>
+  const leftHtml=state.board.faqMode?`
+        <div class="hint-box">Background info behind the indications, grouped by topic. Saved from the Knowledge base panel below (pick a category), or from any chat with the CGL Indications connector enabled.</div>
+        <div class="tile-board-card">
+          <div class="tile-grid" id="faq-grid">${buildFaqGridHtml()}</div>
+        </div>`:`
         <div class="hint-box">Data below is sourced from STRIBROK / ISM Report / ARMADA Chartering, EMA Ship Management and the internal cargo-order log. Click a number to edit it manually, or use the AI panel on the right (or the chat with the CGL Indications connector enabled) to recalculate using live mail, the knowledge base, and web data.</div>
         ${showToggle?`<div class="board-toolbar">
           <div class="direction-toggle">
@@ -811,8 +826,11 @@ function renderBoardMain(){
         </div>`:''}
         <div class="tile-board-card">
           <div class="tile-grid" id="indication-grid">${buildTileGridHtml(routes)}</div>
-        </div>
-      </div>
+        </div>`;
+
+  wrap.innerHTML=`
+    <div class="board-layout">
+      <div>${leftHtml}</div>
       <div>
         <details class="card ai-panel" open>
           <summary><span class="chev">▶</span><span class="section-title">Manual note</span></summary>
@@ -823,6 +841,14 @@ function renderBoardMain(){
         <details class="card ai-panel" style="margin-top:14px" open>
           <summary><span class="chev">▶</span><span class="section-title">Knowledge base (reports &amp; circulars)</span></summary>
           <div class="field" style="margin-bottom:6px"><input type="text" id="doc-title-input" placeholder="Title, e.g. STRIBROK week 36"></div>
+          <div class="field faq-select">
+            <select id="doc-category-input">
+              <option value="general">General Information</option>
+              <option value="real">Real data</option>
+              <option value="claude_calc">Claude calculation</option>
+              <option value="lumpsum">Lumpsum calculation</option>
+            </select>
+          </div>
           <textarea class="ai-textarea" id="doc-content-input" placeholder="Paste the full report/circular text here — STRIBROK, EMA, Sea Lines, cargo-order lists, etc."></textarea>
           <div style="margin-top:8px"><button class="btn-ghost" id="save-doc-btn" style="width:100%">Save document</button></div>
           <div class="ai-status" id="doc-status"></div>
@@ -849,6 +875,7 @@ function renderBoardMain(){
     </div>`;
 
   attachBoardHandlers();
+  if(state.board.faqMode) attachFaqHandlers();
   if(showToggle) updateDirectionButtons();
   renderNotesList();
   renderAiHistory();
@@ -870,6 +897,15 @@ function attachBoardHandlers(){
   if(bhBtn) bhBtn.onclick=()=>{state.board.activeDirection='backhaul';saveState();renderIndicationGridOnly();updateDirectionButtons();};
   const exportBtn=document.getElementById('export-pdf-btn');
   if(exportBtn) exportBtn.onclick=openExportModal;
+  const indFaqBtn=document.getElementById('ind-faq-btn');
+  if(indFaqBtn){
+    indFaqBtn.classList.toggle('active', !!state.board.faqMode);
+    indFaqBtn.onclick=()=>{
+      state.board.faqMode=!state.board.faqMode;
+      saveState();
+      renderBoardMain();
+    };
+  }
 
   document.querySelectorAll('.tile-value').forEach(el=>{
     el.addEventListener('click',()=>{
@@ -979,9 +1015,14 @@ async function loadAndRenderDocList(){
     const res=await apiRequest('GET','/api/documents');
     docListCache=res.documents||[];
     renderDocList();
+    if(state.board.faqMode) renderFaqGridOnly();
   }catch(e){
     if(e.message!=='Session expired') el.innerHTML='<div class="idea-empty">could not load documents</div>';
   }
+}
+function faqCategoryLabel(id){
+  const c=FAQ_CATEGORIES.find(c=>c.id===id);
+  return c?c.label:'General Information';
 }
 function renderDocList(){
   const el=document.getElementById('doc-list');
@@ -993,7 +1034,7 @@ function renderDocList(){
       <div class="doc-head">
         <div>
           <div class="doc-title">${escapeHtml(d.title)}</div>
-          <div class="doc-meta">${escapeHtml(d.source||'manual paste')} · ${escapeHtml((d.created_at||'').slice(0,10))} · ${escapeHtml(d.created_by||'')}</div>
+          <div class="doc-meta">${escapeHtml(faqCategoryLabel(d.category))} · ${escapeHtml(d.source||'manual paste')} · ${escapeHtml((d.created_at||'').slice(0,10))} · ${escapeHtml(d.created_by||'')}</div>
         </div>
         <button class="doc-del" data-docid="${d.id}" title="Delete document">✕</button>
       </div>
@@ -1017,16 +1058,72 @@ function renderDocList(){
     });
   });
 }
+
+/* ── IND FAQ view: same documents, grouped into 4 topic tiles ── */
+function buildFaqGridHtml(){
+  return FAQ_CATEGORIES.map(cat=>{
+    const docs=docListCache.filter(d=>(d.category||'general')===cat.id);
+    const docsHtml=docs.length ? docs.map(d=>{
+      const preview=(d.content||'').slice(0,4000);
+      return `<div class="doc-item" data-docid="${d.id}">
+        <div class="doc-head">
+          <div>
+            <div class="doc-title">${escapeHtml(d.title)}</div>
+            <div class="doc-meta">${escapeHtml(d.source||'manual paste')} · ${escapeHtml((d.created_at||'').slice(0,10))} · ${escapeHtml(d.created_by||'')}</div>
+          </div>
+        </div>
+        <span class="doc-toggle" data-docid="${d.id}">show/hide text</span>
+        <div class="doc-preview" data-docid="${d.id}">${escapeHtml(preview)}${(d.content||'').length>4000?'…':''}</div>
+      </div>`;
+    }).join('') : '<div class="idea-empty">no documents in this category yet</div>';
+    return `
+    <div class="tile" data-faqcat="${cat.id}">
+      <p class="tile-label">${escapeHtml(cat.label)}</p>
+      <div class="tile-value" style="cursor:default">${docs.length}<span class="unit">${docs.length===1?'doc':'docs'}</span></div>
+      <div class="tile-foot"><button class="tile-expand-btn" data-faqcat="${cat.id}">details</button></div>
+      <div class="tile-detail" data-faqcat="${cat.id}" style="display:none">${docsHtml}</div>
+    </div>`;
+  }).join('');
+}
+function attachFaqHandlers(){
+  document.querySelectorAll('#faq-grid .tile-expand-btn').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const cat=btn.dataset.faqcat;
+      const tile=document.querySelector('#faq-grid .tile[data-faqcat="'+cat+'"]');
+      const detail=document.querySelector('#faq-grid .tile-detail[data-faqcat="'+cat+'"]');
+      if(!tile||!detail)return;
+      const open=detail.style.display!=='none';
+      detail.style.display=open?'none':'block';
+      tile.classList.toggle('expanded',!open);
+      btn.textContent=open?'details':'hide';
+    });
+  });
+  document.querySelectorAll('#faq-grid .doc-toggle').forEach(t=>{
+    t.addEventListener('click',()=>{
+      const pv=document.querySelector('#faq-grid .doc-preview[data-docid="'+t.dataset.docid+'"]');
+      if(pv) pv.classList.toggle('open');
+    });
+  });
+}
+function renderFaqGridOnly(){
+  const gridEl=document.getElementById('faq-grid');
+  if(!gridEl) return;
+  gridEl.innerHTML=buildFaqGridHtml();
+  attachFaqHandlers();
+}
+
 async function saveDocument(){
   const titleInp=document.getElementById('doc-title-input');
   const contentInp=document.getElementById('doc-content-input');
+  const catInp=document.getElementById('doc-category-input');
   const statusEl=document.getElementById('doc-status');
   const title=titleInp.value.trim();
   const content=contentInp.value.trim();
+  const category=catInp?catInp.value:'general';
   if(!title||!content){ statusEl.textContent='Title and text are both required.'; statusEl.className='ai-status err'; return; }
   statusEl.textContent='Saving…'; statusEl.className='ai-status';
   try{
-    await apiRequest('POST','/api/documents',{title, content, source:'manual paste'});
+    await apiRequest('POST','/api/documents',{title, content, source:'manual paste', category});
     titleInp.value=''; contentInp.value='';
     statusEl.textContent='✓ saved'; statusEl.className='ai-status';
     setTimeout(()=>{statusEl.textContent='';},1800);
