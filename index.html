@@ -53,8 +53,7 @@ body,*{scrollbar-width:thin;scrollbar-color:var(--border) transparent}
 .add-voyage-btn{flex-shrink:0;padding:7px 14px;border-radius:20px;border:1.5px dashed var(--border);background:transparent;color:var(--text-muted);font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap}
 
 .cargo-bar{background:var(--tab-bg);border-bottom:1px solid var(--border);position:sticky;top:54px;z-index:99}
-.cargo-bar-inner{max-width:1180px;margin:0 auto;padding:10px 20px;display:flex;align-items:center;gap:10px}
-.cargo-pills-scroll{display:flex;align-items:center;gap:8px;overflow-x:auto;flex:1;min-width:0}
+.cargo-bar-inner{max-width:1180px;margin:0 auto;padding:10px 20px;display:flex;align-items:center;gap:8px;overflow-x:auto}
 .cargo-pill{display:flex;align-items:center;gap:8px;padding:7px 14px;border-radius:20px;border:1.5px solid var(--border);background:var(--card);cursor:pointer;font-size:12px;font-weight:600;color:var(--text-muted);white-space:nowrap}
 .cargo-pill.active{background:var(--btn-dark-bg);color:var(--btn-dark-fg);border-color:transparent}
 .cargo-pill .del-x{opacity:.45;font-size:12px}
@@ -71,6 +70,7 @@ body,*{scrollbar-width:thin;scrollbar-color:var(--border) transparent}
 .direction-btn.active{background:var(--btn-dark-bg);color:var(--btn-dark-fg);border-color:transparent}
 .export-btn{padding:8px 16px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0}
 .export-btn.active{background:var(--btn-dark-bg);color:var(--btn-dark-fg);border-color:transparent}
+.page-actions-row{display:flex;justify-content:flex-end;gap:8px;margin-bottom:10px;flex-wrap:wrap}
 
 /* FAQ view */
 .faq-select{margin-bottom:6px}
@@ -275,11 +275,7 @@ details.section summary .sec-count.all-done{color:var(--success);background:var(
 </div>
 
 <div class="cargo-bar" id="cargo-bar" style="display:none">
-  <div class="cargo-bar-inner">
-    <div class="cargo-pills-scroll" id="cargo-pills"></div>
-    <button class="export-btn" id="ind-faq-btn" title="Show grouped background info (General / Real data / Claude calc / Lumpsum calc)">📚 IND FAQ</button>
-    <button class="export-btn" id="export-pdf-btn" title="Export current indications to PDF">📄 Export PDF</button>
-  </div>
+  <div class="cargo-bar-inner" id="cargo-pills"></div>
 </div>
 
 <div class="voyage-bar" id="voyage-bar" style="display:none">
@@ -300,6 +296,30 @@ const safeStorage={
 function todayStr(){
   const d=new Date();
   return String(d.getDate()).padStart(2,'0')+'.'+String(d.getMonth()+1).padStart(2,'0')+'.'+String(d.getFullYear()).slice(2);
+}
+
+/* Which sidebar panels (Manual note / Knowledge base / AI request) are
+   expanded — a personal display preference, kept in this browser only
+   (not synced to the server), so it survives re-renders/refreshes but
+   isn't something to sync between team members. */
+function getPanelOpenState(){
+  try{
+    const raw=safeStorage.getItem('cgl_panels_open');
+    if(raw) return Object.assign({note:true,kb:true,ai:true}, JSON.parse(raw));
+  }catch(e){}
+  return {note:true,kb:true,ai:true};
+}
+function setPanelOpenState(key,isOpen){
+  const s=getPanelOpenState();
+  s[key]=isOpen;
+  safeStorage.setItem('cgl_panels_open', JSON.stringify(s));
+}
+function attachPanelToggleListeners(){
+  const map={'panel-note':'note','panel-kb':'kb','panel-ai':'ai'};
+  Object.keys(map).forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.addEventListener('toggle', ()=>{ setPanelOpenState(map[id], el.open); });
+  });
 }
 function escapeHtml(s){return (s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 
@@ -811,12 +831,21 @@ function renderBoardMain(){
   if(!cargo && !state.board.faqMode){wrap.innerHTML='<div class="empty-state">No data for this cargo</div>';return;}
   const showToggle=cargo?cargoHasBothDirections(cargo):false;
   const routes=cargo?(showToggle?visibleRoutes(cargo):(cargo.routes||[])):[];
+  const panelState=getPanelOpenState();
+
+  const actionsRowHtml=`
+        <div class="page-actions-row">
+          <button class="export-btn" id="ind-faq-btn" title="Show grouped background info (General / Real data / Claude calc / Lumpsum calc)">📚 IND FAQ</button>
+          <button class="export-btn" id="export-pdf-btn" title="Export current indications to PDF">📄 Export PDF</button>
+        </div>`;
 
   const leftHtml=state.board.faqMode?`
+        ${actionsRowHtml}
         <div class="hint-box">Background info behind the indications, grouped by topic. Saved from the Knowledge base panel below (pick a category), or from any chat with the CGL Indications connector enabled.</div>
         <div class="tile-board-card">
           <div class="tile-grid" id="faq-grid">${buildFaqGridHtml()}</div>
         </div>`:`
+        ${actionsRowHtml}
         <div class="hint-box">Data below is sourced from STRIBROK / ISM Report / ARMADA Chartering, EMA Ship Management and the internal cargo-order log. Click a number to edit it manually, or use the AI panel on the right (or the chat with the CGL Indications connector enabled) to recalculate using live mail, the knowledge base, and web data.</div>
         ${showToggle?`<div class="board-toolbar">
           <div class="direction-toggle">
@@ -832,13 +861,13 @@ function renderBoardMain(){
     <div class="board-layout">
       <div>${leftHtml}</div>
       <div>
-        <details class="card ai-panel" open>
+        <details class="card ai-panel" id="panel-note" ${panelState.note?'open':''}>
           <summary><span class="chev">▶</span><span class="section-title">Manual note</span></summary>
           <textarea class="ai-textarea" id="note-input" placeholder="E.g.: yesterday MHP fixed MV MARIA S at $100 ex Reni to Lebanon — FYI"></textarea>
           <div style="margin-top:8px"><button class="btn-ghost" id="save-note-btn" style="width:100%">Save note</button></div>
           <div id="notes-list" style="margin-top:10px;max-height:160px;overflow-y:auto"></div>
         </details>
-        <details class="card ai-panel" style="margin-top:14px" open>
+        <details class="card ai-panel" id="panel-kb" style="margin-top:14px" ${panelState.kb?'open':''}>
           <summary><span class="chev">▶</span><span class="section-title">Knowledge base (reports &amp; circulars)</span></summary>
           <div class="field" style="margin-bottom:6px"><input type="text" id="doc-title-input" placeholder="Title, e.g. STRIBROK week 36"></div>
           <div class="field faq-select">
@@ -854,7 +883,7 @@ function renderBoardMain(){
           <div class="ai-status" id="doc-status"></div>
           <div id="doc-list" style="margin-top:10px;max-height:220px;overflow-y:auto"></div>
         </details>
-        <details class="card ai-panel" style="margin-top:14px" open>
+        <details class="card ai-panel" id="panel-ai" style="margin-top:14px" ${panelState.ai?'open':''}>
           <summary>
             <span class="chev">▶</span><span class="section-title">AI request — recalculate indication</span>
             <button class="gear-btn" id="ai-settings-btn" title="API key settings" style="margin-left:auto">⚙</button>
@@ -875,6 +904,7 @@ function renderBoardMain(){
     </div>`;
 
   attachBoardHandlers();
+  attachPanelToggleListeners();
   if(state.board.faqMode) attachFaqHandlers();
   if(showToggle) updateDirectionButtons();
   renderNotesList();
