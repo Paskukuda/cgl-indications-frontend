@@ -73,7 +73,8 @@ body,*{scrollbar-width:thin;scrollbar-color:var(--border) transparent}
 .page-actions-row{display:flex;justify-content:flex-end;gap:8px;margin-bottom:10px;flex-wrap:wrap}
 .sidebar-actions-card{display:flex;gap:8px}
 .sidebar-actions-card .export-btn{flex:1;display:flex;align-items:center;justify-content:center;gap:6px}
-.tab-bar-inner.auth-centered .tab-bar-brand{flex:1;justify-content:center}
+.tab-bar-inner.auth-centered{position:relative}
+.tab-bar-inner.auth-centered .tab-bar-brand{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%)}
 .tab-bar-inner.auth-centered .tab-spacer{display:none}
 
 /* FAQ view */
