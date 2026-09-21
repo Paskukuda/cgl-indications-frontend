@@ -71,6 +71,8 @@ body,*{scrollbar-width:thin;scrollbar-color:var(--border) transparent}
 .export-btn{padding:8px 16px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0}
 .export-btn.active{background:var(--btn-dark-bg);color:var(--btn-dark-fg);border-color:transparent}
 .page-actions-row{display:flex;justify-content:flex-end;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.sidebar-actions-card{display:flex;gap:8px}
+.sidebar-actions-card .export-btn{flex:1;display:flex;align-items:center;justify-content:center;gap:6px}
 
 /* FAQ view */
 .faq-select{margin-bottom:6px}
@@ -922,19 +924,11 @@ function renderBoardMain(){
   const routes=showLotToggle?filterByLot(dirRoutes):dirRoutes;
   const panelState=getPanelOpenState();
 
-  const actionsRowHtml=`
-        <div class="page-actions-row">
-          <button class="export-btn" id="ind-faq-btn" title="Show grouped background info (General / Real data / Claude calc / Lumpsum calc)">${icon('book')} IND FAQ</button>
-          <button class="export-btn" id="export-pdf-btn" title="Export current indications to PDF">${icon('filedown')} Export PDF</button>
-        </div>`;
-
   const leftHtml=state.board.faqMode?`
-        ${actionsRowHtml}
         <div class="tile-board-card">
           <div class="tile-grid" id="faq-grid">${buildFaqGridHtml()}</div>
         </div>
         <div class="hint-box">Background info behind the indications, grouped by topic. Saved from the Knowledge base panel below (pick a category), or from any chat with the CGL Indications connector enabled.</div>`:`
-        ${actionsRowHtml}
         ${(showToggle||showLotToggle)?`<div class="board-toolbar">
           ${showToggle?`<div class="direction-toggle">
             <button class="direction-btn" data-dir="outbound" id="dir-outbound-btn">Outbound</button>
@@ -953,7 +947,11 @@ function renderBoardMain(){
     <div class="board-layout">
       <div>${leftHtml}</div>
       <div>
-        <details class="card ai-panel" id="panel-note" ${panelState.note?'open':''}>
+        <div class="card sidebar-actions-card">
+          <button class="export-btn" id="ind-faq-btn" title="Show grouped background info (General / Real data / Claude calc / Lumpsum calc)">${icon('book')} IND FAQ</button>
+          <button class="export-btn" id="export-pdf-btn" title="Export current indications to PDF">${icon('filedown')} Export PDF</button>
+        </div>
+        <details class="card ai-panel" id="panel-note" style="margin-top:14px" ${panelState.note?'open':''}>
           <summary><span class="chev">▶</span><span class="section-title">Manual note</span></summary>
           <textarea class="ai-textarea" id="note-input" placeholder="E.g.: yesterday MHP fixed MV MARIA S at $100 ex Reni to Lebanon — FYI"></textarea>
           <div style="margin-top:8px"><button class="btn-ghost" id="save-note-btn" style="width:100%">Save note</button></div>
