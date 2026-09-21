@@ -73,6 +73,8 @@ body,*{scrollbar-width:thin;scrollbar-color:var(--border) transparent}
 .page-actions-row{display:flex;justify-content:flex-end;gap:8px;margin-bottom:10px;flex-wrap:wrap}
 .sidebar-actions-card{display:flex;gap:8px}
 .sidebar-actions-card .export-btn{flex:1;display:flex;align-items:center;justify-content:center;gap:6px}
+.tab-bar-inner.auth-centered .tab-bar-brand{flex:1;justify-content:center}
+.tab-bar-inner.auth-centered .tab-spacer{display:none}
 
 /* FAQ view */
 .faq-select{margin-bottom:6px}
@@ -453,6 +455,7 @@ function logout(){
 }
 
 function showAuthGate(message){
+  document.querySelector('.tab-bar-inner').classList.add('auth-centered');
   document.getElementById('main-tab-bar').style.display='none';
   document.getElementById('cargo-bar').style.display='none';
   document.getElementById('voyage-bar').style.display='none';
@@ -501,6 +504,7 @@ function renderSignIn(message){
 }
 
 function onAuthSuccess(){
+  document.querySelector('.tab-bar-inner').classList.remove('auth-centered');
   document.getElementById('main-tab-bar').style.display='';
   document.getElementById('logout-btn').style.display='';
   document.getElementById('refresh-btn').style.display='';
