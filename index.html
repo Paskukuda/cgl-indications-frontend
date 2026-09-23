@@ -334,9 +334,9 @@ function todayStr(){
 function getPanelOpenState(){
   try{
     const raw=safeStorage.getItem('cgl_panels_open');
-    if(raw) return Object.assign({note:true,kb:true,ai:true,lumpsum:true}, JSON.parse(raw));
+    if(raw) return Object.assign({note:true,kb:true,ai:true,lumpsum:true,msggen:true}, JSON.parse(raw));
   }catch(e){}
-  return {note:true,kb:true,ai:true,lumpsum:true};
+  return {note:true,kb:true,ai:true,lumpsum:true,msggen:true};
 }
 function setPanelOpenState(key,isOpen){
   const s=getPanelOpenState();
@@ -344,7 +344,7 @@ function setPanelOpenState(key,isOpen){
   safeStorage.setItem('cgl_panels_open', JSON.stringify(s));
 }
 function attachPanelToggleListeners(){
-  const map={'panel-note':'note','panel-kb':'kb','panel-ai':'ai','panel-lumpsum':'lumpsum'};
+  const map={'panel-note':'note','panel-kb':'kb','panel-ai':'ai','panel-lumpsum':'lumpsum','panel-msggen':'msggen'};
   Object.keys(map).forEach(id=>{
     const el=document.getElementById(id);
     if(el) el.addEventListener('toggle', ()=>{ setPanelOpenState(map[id], el.open); });
@@ -389,6 +389,162 @@ function attachLumpsumCalc(){
   });
   computeLumpsum();
 }
+
+/* ── Message generator (sidebar) ──
+   Reuses the same Anthropic API call pattern as the AI recalculation
+   panel, but for plain text drafting: given a raw pasted order plus
+   vessel/recipient/charterer, it fills one of five fixed WhatsApp/email
+   templates (verbatim wording the broker already uses) rather than
+   parsing the order with brittle regex. */
+const MSG_TEMPLATES = {
+  order_manager: `Good day [Name]
+
+Hope you are doing well!
+My name is Konstantin from CGL (www.chayka-gl.com).
+
+can we try our orders for your good lady [VESSEL]:
+
+1.
+min [X] - max [Y] mt [CARGO] SF [XX]' wog
+[POL] ==> [POD]
+Laycan: [start] - [end]
+Rate: [rate] / [rate]
+Comm: Total [X]%
+Max draft: [X] m
+Notes: [notes]
+
+(repeat "2.", "3." etc. in the same numbered block shape for each further order in the pasted text — omit any field the order doesn't mention, e.g. no Notes line if there are no notes)`,
+  under_mgmt_single: `Good day, 
+
+This is Konstantin from CGL (www.chayka-gl.com)
+
+Kindly advise whether M/V [VESSEL] is under your management?
+can we try this order:
+
+min [X] - max [Y] mt [CARGO] SF [XX]' wog
+[POL] ==> [POD]
+[laycan start] - [laycan end]
+[rate] / [rate]
+Total [X]%
+Max draft: [X]
+[notes]`,
+  under_mgmt_multi: `Good day, 
+
+This is Konstantin from CGL (www.chayka-gl.com)
+
+Kindly advise whether M/V [VESSEL] is under your management?
+can we try this orders:
+
+Spot-[date]
+[qty] [cargo] [sf]'
+From [POL]
+To [POD]
+
+Min [X] – max [Y]mt [cargo] sf [XX]' wog
+[POL] ==> [POD]
+Laycan: [laycan]
+Total [X]%
+Max draft: [X]m
+
+(repeat the "Min ... Max draft" block for each further order in the pasted text)`,
+  freight_idea: `Good Afternoon!
+
+Hope you are doing well!
+
+My name is Konstantin from CGL (www.chayka-gl.com).
+
+We have request from close charterer [CHARTERER], asking for a freight idea ex [POL] to [POD].
+We saw that your vessel "[VESSEL]" is opening at [POL] - could you kindly advise your freight idea?
+
+[qty]mt +/- [tolerance]%  [cargo] in Bulk SF [XX]' 
+[POL] ==> [POD]
+[laycan start] - [laycan end]
+[rate] / [rate]
+Total [X]%
+
+Thank you in advance`,
+  bb_cargo: `Good day [Name]!
+
+Hope you are doing well!
+My name is Konstantin from CGL (www.chayka-gl.com).
+
+can we try our order for your good vsl [VESSEL]:
+
+* POL - [Load port]
+* POD - [Discharge port]
+* CGO - [cargo] (big bags)
+* Qty - [qty]
+
+[reproduce any bag-breakdown / packing detail lines from the pasted order here, in the same "1 MT Big Bag: Xkg × Y bags - cargo Zmt" style if present]`,
+};
+function attachMsgGen(){
+  const btn=document.getElementById('msg-gen-btn');
+  if(btn) btn.onclick=generateMessage;
+}
+async function generateMessage(){
+  const vessel=document.getElementById('msg-vessel').value.trim();
+  const recipient=document.getElementById('msg-recipient').value.trim();
+  const charterer=document.getElementById('msg-charterer').value.trim();
+  const templateKey=document.getElementById('msg-template').value;
+  const orderText=document.getElementById('msg-order-text').value.trim();
+  const statusEl=document.getElementById('msg-status');
+  const outputWrap=document.getElementById('msg-output-wrap');
+  const btn=document.getElementById('msg-gen-btn');
+
+  if(!orderText){ statusEl.textContent='Paste the raw order text first.'; statusEl.className='ai-status err'; return; }
+  if(!vessel){ statusEl.textContent='Vessel name is required.'; statusEl.className='ai-status err'; return; }
+
+  btn.disabled=true;
+  statusEl.className='ai-status';
+  statusEl.innerHTML='<span class="spin"></span>Drafting…';
+  outputWrap.innerHTML='';
+
+  const template=MSG_TEMPLATES[templateKey];
+  const systemPrompt=`You draft WhatsApp/email messages for a dry-bulk freight broker (Konstantin, from CGL). Fill in the template below EXACTLY — same line breaks, same wording, same punctuation ("==>", "wog", "M/V", etc.) — substituting only the bracketed placeholders with real values pulled from the pasted order text and the fields given. If the order text has more than one cargo/order in it and the template supports repeating (it says so), repeat that block once per order, numbered or in sequence as shown. If a placeholder has no matching info in the order text, drop that whole line rather than leaving a bracket in the output. Output ONLY the final message text — no explanation, no markdown fences, nothing before or after it.
+
+TEMPLATE:
+${template}
+
+FIELDS:
+Vessel: ${vessel}
+Recipient name: ${recipient||'(not given — use "Good day," with no name, matching the template style when recipient is unnamed)'}
+Charterer: ${charterer||'(not given)'}
+
+RAW ORDER TEXT (parse cargo/qty/SF/ports/laycan/rate/commission/draft/notes from this):
+${orderText}`;
+
+  try{
+    const headers={'Content-Type':'application/json'};
+    const key=safeStorage.getItem('cgl_anthropic_key');
+    if(key){ headers['x-api-key']=key; headers['anthropic-dangerous-direct-browser-access']='true'; headers['anthropic-version']='2023-06-01'; }
+    const body={ model:'claude-sonnet-4-6', max_tokens:800, system:systemPrompt, messages:[{role:'user', content:'Generate the message.'}] };
+    const resp=await fetch('https://api.anthropic.com/v1/messages',{ method:'POST', headers, body:JSON.stringify(body) });
+    if(!resp.ok){
+      let extra='';
+      if(resp.status===401 || resp.status===403) extra=' — if this page is hosted outside Claude.ai, add your API key via the settings button.';
+      throw new Error('HTTP '+resp.status+extra);
+    }
+    const data=await resp.json();
+    const msgText=(data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('\n').trim();
+    statusEl.textContent='Done';
+    statusEl.className='ai-status';
+    outputWrap.innerHTML=`<div class="ai-summary-box" id="msg-output-text" style="white-space:pre-wrap;font-family:'IBM Plex Mono',monospace;font-size:12px">${escapeHtml(msgText)}</div>
+      <button class="btn-ghost" id="msg-copy-btn" style="width:100%;margin-top:8px">${icon('copy')} Copy message</button>`;
+    document.getElementById('msg-copy-btn').onclick=async ()=>{
+      try{
+        await navigator.clipboard.writeText(msgText);
+        const cb=document.getElementById('msg-copy-btn');
+        cb.textContent='Copied!';
+        setTimeout(()=>{ cb.innerHTML=icon('copy')+' Copy message'; },1500);
+      }catch(e){ alert('Could not copy automatically — select the text above and copy manually.'); }
+    };
+  }catch(err){
+    statusEl.textContent='Request error: '+err.message;
+    statusEl.className='ai-status err';
+  }
+  btn.disabled=false;
+}
+
 function escapeHtml(s){return (s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 
 /* ══════════════════════════════════════════════════════════
@@ -1010,12 +1166,36 @@ function renderBoardMain(){
           <div class="field" style="margin-top:10px"><label>Target vessel capacity, t (optional)</label><input type="number" id="lc-target-cap" step="1" placeholder="leave blank to estimate from SF ratio"></div>
           <div id="lc-result" style="margin-top:12px"></div>
         </details>
+        <details class="card ai-panel" id="panel-msggen" style="margin-top:14px" ${panelState.msggen?'open':''}>
+          <summary><span class="chev">▶</span><span class="section-title">Message generator</span></summary>
+          <div class="hint-box" style="margin-bottom:10px">Paste a raw order and pick the situation — it drafts the WhatsApp/email message in your usual wording, ready to copy.</div>
+          <div class="field-grid">
+            <div class="field"><label>Vessel name</label><input type="text" id="msg-vessel" placeholder="e.g. ANKA BLUE"></div>
+            <div class="field"><label>Recipient name</label><input type="text" id="msg-recipient" placeholder="e.g. Sahin (optional)"></div>
+          </div>
+          <div class="field" style="margin-top:10px"><label>Charterer (only for freight idea request)</label><input type="text" id="msg-charterer" placeholder="e.g. VIMEKSIM"></div>
+          <div class="field" style="margin-top:10px">
+            <label>Message type</label>
+            <select id="msg-template">
+              <option value="order_manager">Order pitch to manager ("good lady/vsl")</option>
+              <option value="under_mgmt_single">"Under your management?" — single order</option>
+              <option value="under_mgmt_multi">"Under your management?" — multiple orders</option>
+              <option value="freight_idea">Freight idea request (from a charterer)</option>
+              <option value="bb_cargo">Big-bag cargo order</option>
+            </select>
+          </div>
+          <textarea class="ai-textarea" id="msg-order-text" style="margin-top:10px" placeholder="Paste the raw order(s) — cargo, SF, qty, load/discharge ports, laycan, rate, commission, draft, notes..."></textarea>
+          <button class="btn-primary" id="msg-gen-btn" style="margin-top:8px">${icon('refresh')} Generate message</button>
+          <div class="ai-status" id="msg-status"></div>
+          <div id="msg-output-wrap"></div>
+        </details>
       </div>
     </div>`;
 
   attachBoardHandlers();
   attachPanelToggleListeners();
   attachLumpsumCalc();
+  attachMsgGen();
   if(state.board.faqMode) attachFaqHandlers();
   if(showToggle) updateDirectionButtons();
   renderNotesList();
