@@ -997,6 +997,7 @@ function buildAisTableHtml(vessels){
       speedCls=v.underway?'estimate':'owners';
       speedText+=v.underway?' · underway':' · likely idle';
     }
+    const destText=v.destination?escapeHtml(v.destination)+(v.eta?' · ETA '+escapeHtml(v.eta):''):'—';
     return `<tr data-imo="${escapeHtml(v.imo)}">
       <td>${escapeHtml(v.name||'—')}</td>
       <td>${escapeHtml(v.imo)}</td>
@@ -1005,12 +1006,13 @@ function buildAisTableHtml(vessels){
       <td class="ais-dwt-cell" data-imo="${escapeHtml(v.imo)}" style="cursor:pointer" title="Click to set DWT manually — not part of raw AIS">${v.dwt?Math.round(v.dwt).toLocaleString():'—'}</td>
       <td class="tile-sub" style="display:table-cell">${sizeText}</td>
       <td>${escapeHtml(v.nearest_port||'—')}${v.distance_nm!=null?' · '+v.distance_nm+' nm':''}</td>
+      <td class="tile-sub" style="display:table-cell" title="Self-reported by the crew — often stale or wrong, treat as a hint only">${destText}</td>
       <td class="tile-sub ${speedCls}" style="display:table-cell" title="Speed over ground — near 0kn near a port is a stronger 'maybe waiting' signal than a vessel passing through">${speedText}</td>
       <td class="tile-sub ${stale.cls}" style="display:table-cell">${stale.text}</td>
     </tr>`;
   }).join('');
   return `<div style="overflow-x:auto"><table class="ais-table">
-    <thead><tr><th>Name</th><th>IMO</th><th>MMSI</th><th>Type</th><th>DWT</th><th>Size (AIS)</th><th>Nearest port</th><th>Speed</th><th>Last seen</th></tr></thead>
+    <thead><tr><th>Name</th><th>IMO</th><th>MMSI</th><th>Type</th><th>DWT</th><th>Size (AIS)</th><th>Nearest port</th><th>Destination (AIS)</th><th>Speed</th><th>Last seen</th></tr></thead>
     <tbody>${rows}</tbody>
   </table></div>`;
 }
