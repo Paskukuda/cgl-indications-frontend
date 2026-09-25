@@ -957,10 +957,12 @@ function activeVoyage(){return state.voyages.find(v=>v.id===state.activeId);}
    ══════════════════════════════════════════════════════════ */
 let aisCache=[];
 let aisDisclaimer='';
+let aisShowAllTypes=false;
 async function renderAisMain(){
   const wrap=document.getElementById('main-wrap');
   wrap.innerHTML=`
-    <div class="page-actions-row">
+    <div class="page-actions-row" style="justify-content:space-between">
+      <label class="ai-toggle" style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="ais-all-types-cb" ${aisShowAllTypes?'checked':''}> show all vessel types (incl. non-cargo)</label>
       <button class="export-btn" id="ais-refresh-btn">${icon('refresh')} Refresh now</button>
     </div>
     <div class="hint-box" id="ais-disclaimer">Loading…</div>
@@ -968,6 +970,7 @@ async function renderAisMain(){
       <div id="ais-table-wrap"><div class="idea-empty">Loading vessels…</div></div>
     </div>`;
   document.getElementById('ais-refresh-btn').onclick=loadAisVessels;
+  document.getElementById('ais-all-types-cb').onchange=(e)=>{ aisShowAllTypes=e.target.checked; loadAisVessels(); };
   await loadAisVessels();
 }
 function aisStaleLabel(v){
@@ -984,18 +987,23 @@ function buildAisTableHtml(vessels){
     const typeText=v.type_mismatch
       ? `<span class="tile-sub estimate" style="display:inline">${escapeHtml(v.manual_type)}</span> <span style="color:var(--text-muted);font-size:10px">(AIS says: ${escapeHtml(v.ais_type||'—')})</span>`
       : escapeHtml(v.manual_type||v.ais_type||'—');
+    const sizeText=[
+      v.loa?Math.round(v.loa)+'m LOA':null,
+      v.max_draught?v.max_draught+'m draught':null,
+    ].filter(Boolean).join(' · ')||'—';
     return `<tr data-imo="${escapeHtml(v.imo)}">
       <td>${escapeHtml(v.name||'—')}</td>
       <td>${escapeHtml(v.imo)}</td>
       <td>${escapeHtml(v.mmsi||'—')}</td>
       <td class="ais-type-cell" data-imo="${escapeHtml(v.imo)}" style="cursor:pointer" title="Click to correct the type manually">${typeText}</td>
-      <td>${v.dwt?Math.round(v.dwt).toLocaleString():'—'}</td>
+      <td class="ais-dwt-cell" data-imo="${escapeHtml(v.imo)}" style="cursor:pointer" title="Click to set DWT manually — not part of raw AIS">${v.dwt?Math.round(v.dwt).toLocaleString():'—'}</td>
+      <td class="tile-sub" style="display:table-cell">${sizeText}</td>
       <td>${escapeHtml(v.nearest_port||'—')}${v.distance_nm!=null?' · '+v.distance_nm+' nm':''}</td>
       <td class="tile-sub ${stale.cls}" style="display:table-cell">${stale.text}</td>
     </tr>`;
   }).join('');
   return `<div style="overflow-x:auto"><table class="ais-table">
-    <thead><tr><th>Name</th><th>IMO</th><th>MMSI</th><th>Type</th><th>DWT</th><th>Nearest port</th><th>Last seen</th></tr></thead>
+    <thead><tr><th>Name</th><th>IMO</th><th>MMSI</th><th>Type</th><th>DWT</th><th>Size (AIS)</th><th>Nearest port</th><th>Last seen</th></tr></thead>
     <tbody>${rows}</tbody>
   </table></div>`;
 }
@@ -1012,6 +1020,20 @@ function attachAisTableHandlers(){
       }catch(e){ if(e.message!=='Session expired') alert('Could not save: '+e.message); }
     });
   });
+  document.querySelectorAll('.ais-dwt-cell').forEach(cell=>{
+    cell.addEventListener('click', async ()=>{
+      const imo=cell.dataset.imo;
+      const v=aisCache.find(x=>x.imo===imo);
+      const val=prompt('DWT for IMO '+imo+' (not part of raw AIS — look it up, e.g. on Equasis/MagicPort, or leave blank to clear):', v&&v.dwt?String(v.dwt):'');
+      if(val===null) return;
+      const num=val.trim()===''?null:parseFloat(val.trim());
+      if(val.trim()!=='' && isNaN(num)){ alert('Enter a number.'); return; }
+      try{
+        await apiRequest('PUT','/api/vessels/'+encodeURIComponent(imo)+'/type', {manual_dwt: num});
+        await loadAisVessels();
+      }catch(e){ if(e.message!=='Session expired') alert('Could not save: '+e.message); }
+    });
+  });
 }
 async function loadAisVessels(){
   const disclaimerEl=document.getElementById('ais-disclaimer');
@@ -1019,7 +1041,7 @@ async function loadAisVessels(){
   const btn=document.getElementById('ais-refresh-btn');
   if(btn) btn.disabled=true;
   try{
-    const res=await apiRequest('GET','/api/vessels');
+    const res=await apiRequest('GET','/api/vessels'+(aisShowAllTypes?'?all_types=true':''));
     aisCache=res.vessels||[];
     aisDisclaimer=res.disclaimer||'';
     if(disclaimerEl) disclaimerEl.textContent=aisDisclaimer;
