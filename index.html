@@ -74,6 +74,10 @@ body,*{scrollbar-width:thin;scrollbar-color:var(--border) transparent}
 .page-actions-row{display:flex;justify-content:flex-end;gap:8px;margin-bottom:10px;flex-wrap:wrap}
 .sidebar-actions-card{display:flex;gap:8px}
 .sidebar-actions-card .export-btn{flex:1;display:flex;align-items:center;justify-content:center;gap:6px}
+.ais-table{width:100%;border-collapse:collapse;font-size:12px}
+.ais-table th{text-align:left;padding:8px 10px;color:var(--text-muted);font-weight:600;border-bottom:1px solid var(--border);white-space:nowrap}
+.ais-table td{padding:8px 10px;border-bottom:1px solid var(--border-soft);white-space:nowrap}
+.ais-table tbody tr:hover{background:var(--input-bg)}
 .tab-bar-inner.auth-centered{position:relative}
 .tab-bar-inner.auth-centered .tab-bar-brand{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%)}
 
@@ -273,6 +277,7 @@ details.section summary .sec-count.all-done{color:var(--success);background:var(
     <div class="main-tab-bar" id="main-tab-bar">
       <button class="main-tab-btn" id="tab-board-btn" onclick="setMainTab('board')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><line x1="6" y1="20" x2="6" y2="12"/><line x1="12" y1="20" x2="12" y2="6"/><line x1="18" y1="20" x2="18" y2="15"/></svg> Indications</button>
       <button class="main-tab-btn" id="tab-checklist-btn" onclick="setMainTab('checklist')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><rect x="3.5" y="3.5" width="17" height="17" rx="3"/><path d="M7.5 12.3l3 3 6-6.5"/></svg> Voyage Checklist</button>
+      <button class="main-tab-btn" id="tab-ais-btn" onclick="setMainTab('ais')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M4 15l1.5 4.5a2 2 0 0 0 1.9 1.5h9.2a2 2 0 0 0 1.9-1.5L20 15"/><path d="M6 15V8h12v7"/><line x1="12" y1="3" x2="12" y2="8"/><line x1="9" y1="5" x2="15" y2="5"/></svg> AIS / Vessels</button>
     </div>
     <span class="autosave-msg" id="autosave-msg">✓ saved</span>
     <div class="tab-spacer"></div>
@@ -307,6 +312,7 @@ const ICONS={
   book:'<path d="M4 5.5c2.5-1 5-1 7 0v13c-2-1-4.5-1-7 0z"/><path d="M20 5.5c-2.5-1-5-1-7 0v13c2-1 4.5-1 7 0z"/>',
   filedown:'<path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/><path d="M9.5 15.5L12 18l2.5-2.5"/><line x1="12" y1="12" x2="12" y2="18"/>',
   copy:'<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>',
+  ship:'<path d="M4 15l1.5 4.5a2 2 0 0 0 1.9 1.5h9.2a2 2 0 0 0 1.9-1.5L20 15"/><path d="M6 15V8h12v7"/><line x1="12" y1="3" x2="12" y2="8"/><line x1="9" y1="5" x2="15" y2="5"/>',
   settings:'<line x1="4" y1="6" x2="20" y2="6"/><circle cx="9" cy="6" r="2"/><line x1="4" y1="12" x2="20" y2="12"/><circle cx="15" cy="12" r="2"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="7" cy="18" r="2"/>'
 };
 function icon(name,size){
@@ -947,6 +953,85 @@ function normalizeState(){
 function activeVoyage(){return state.voyages.find(v=>v.id===state.activeId);}
 
 /* ══════════════════════════════════════════════════════════
+   AIS / VESSELS TAB
+   ══════════════════════════════════════════════════════════ */
+let aisCache=[];
+let aisDisclaimer='';
+async function renderAisMain(){
+  const wrap=document.getElementById('main-wrap');
+  wrap.innerHTML=`
+    <div class="page-actions-row">
+      <button class="export-btn" id="ais-refresh-btn">${icon('refresh')} Refresh now</button>
+    </div>
+    <div class="hint-box" id="ais-disclaimer">Loading…</div>
+    <div class="tile-board-card">
+      <div id="ais-table-wrap"><div class="idea-empty">Loading vessels…</div></div>
+    </div>`;
+  document.getElementById('ais-refresh-btn').onclick=loadAisVessels;
+  await loadAisVessels();
+}
+function aisStaleLabel(v){
+  if(v.stale===null || v.stale===undefined) return {cls:'', text:v.last_seen?escapeHtml(v.last_seen.slice(0,16).replace('T',' ')):'no signal yet'};
+  const ts=v.last_seen?v.last_seen.slice(0,16).replace('T',' '):'—';
+  return v.stale
+    ? {cls:'estimate', text:escapeHtml(ts)+' · stale (>'+6+'h)'}
+    : {cls:'owners', text:escapeHtml(ts)+' · fresh'};
+}
+function buildAisTableHtml(vessels){
+  if(!vessels.length) return '<div class="idea-empty">No AIS data yet — the background worker fills this in as positions come in.</div>';
+  const rows=vessels.map(v=>{
+    const stale=aisStaleLabel(v);
+    const typeText=v.type_mismatch
+      ? `<span class="tile-sub estimate" style="display:inline">${escapeHtml(v.manual_type)}</span> <span style="color:var(--text-muted);font-size:10px">(AIS says: ${escapeHtml(v.ais_type||'—')})</span>`
+      : escapeHtml(v.manual_type||v.ais_type||'—');
+    return `<tr data-imo="${escapeHtml(v.imo)}">
+      <td>${escapeHtml(v.name||'—')}</td>
+      <td>${escapeHtml(v.imo)}</td>
+      <td>${escapeHtml(v.mmsi||'—')}</td>
+      <td class="ais-type-cell" data-imo="${escapeHtml(v.imo)}" style="cursor:pointer" title="Click to correct the type manually">${typeText}</td>
+      <td>${v.dwt?Math.round(v.dwt).toLocaleString():'—'}</td>
+      <td>${escapeHtml(v.nearest_port||'—')}${v.distance_nm!=null?' · '+v.distance_nm+' nm':''}</td>
+      <td class="tile-sub ${stale.cls}" style="display:table-cell">${stale.text}</td>
+    </tr>`;
+  }).join('');
+  return `<div style="overflow-x:auto"><table class="ais-table">
+    <thead><tr><th>Name</th><th>IMO</th><th>MMSI</th><th>Type</th><th>DWT</th><th>Nearest port</th><th>Last seen</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table></div>`;
+}
+function attachAisTableHandlers(){
+  document.querySelectorAll('.ais-type-cell').forEach(cell=>{
+    cell.addEventListener('click', async ()=>{
+      const imo=cell.dataset.imo;
+      const v=aisCache.find(x=>x.imo===imo);
+      const val=prompt('Manual type correction for IMO '+imo+' (leave blank to clear):', v?(v.manual_type||''):'');
+      if(val===null) return;
+      try{
+        await apiRequest('PUT','/api/vessels/'+encodeURIComponent(imo)+'/type', {manual_type: val.trim()||null});
+        await loadAisVessels();
+      }catch(e){ if(e.message!=='Session expired') alert('Could not save: '+e.message); }
+    });
+  });
+}
+async function loadAisVessels(){
+  const disclaimerEl=document.getElementById('ais-disclaimer');
+  const tableWrap=document.getElementById('ais-table-wrap');
+  const btn=document.getElementById('ais-refresh-btn');
+  if(btn) btn.disabled=true;
+  try{
+    const res=await apiRequest('GET','/api/vessels');
+    aisCache=res.vessels||[];
+    aisDisclaimer=res.disclaimer||'';
+    if(disclaimerEl) disclaimerEl.textContent=aisDisclaimer;
+    if(tableWrap){ tableWrap.innerHTML=buildAisTableHtml(aisCache); attachAisTableHandlers(); }
+  }catch(e){
+    if(e.message!=='Session expired' && tableWrap) tableWrap.innerHTML='<div class="idea-empty">Could not load vessels: '+escapeHtml(e.message)+'</div>';
+  }
+  if(btn) btn.disabled=false;
+}
+
+
+/* ══════════════════════════════════════════════════════════
    MAIN TAB SWITCH
    ══════════════════════════════════════════════════════════ */
 function setMainTab(tab){
@@ -958,10 +1043,12 @@ function setMainTab(tab){
 function render(){
   document.getElementById('tab-board-btn').classList.toggle('active', state.activeMainTab==='board');
   document.getElementById('tab-checklist-btn').classList.toggle('active', state.activeMainTab==='checklist');
+  document.getElementById('tab-ais-btn').classList.toggle('active', state.activeMainTab==='ais');
   document.getElementById('cargo-bar').style.display = state.activeMainTab==='board' ? '' : 'none';
   document.getElementById('voyage-bar').style.display = state.activeMainTab==='checklist' ? '' : 'none';
   if(state.activeMainTab==='board'){ renderCargoPills(); renderBoardMain(); }
-  else { renderVoyagePills(); renderChecklistMain(); }
+  else if(state.activeMainTab==='checklist'){ renderVoyagePills(); renderChecklistMain(); }
+  else { renderAisMain(); }
 }
 
 /* ══════════════════════════════════════════════════════════
