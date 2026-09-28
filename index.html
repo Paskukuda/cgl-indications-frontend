@@ -1007,7 +1007,17 @@ function buildAisTableHtml(vessels){
       speedCls=v.underway?'estimate':'owners';
       speedText+=v.underway?' · underway':' · likely idle';
     }
-    const destText=v.destination?escapeHtml(v.destination)+(v.eta?' · ETA '+escapeHtml(v.eta):''):'—';
+    // AIS ETA is dd.mm hh:mm with no year — flag it when that date has clearly already passed
+    let etaNote='';
+    if(v.eta){
+      const m=v.eta.match(/^(\d{2})\.(\d{2}) (\d{2}):(\d{2})$/);
+      if(m){
+        const now=new Date(), d=new Date(now.getFullYear(),+m[2]-1,+m[1],+m[3],+m[4]);
+        const days=(now-d)/86400000;
+        if(days>1 && days<180) etaNote=' <span style="color:var(--estimate-clr)">(outdated)</span>';
+      }
+    }
+    const destText=v.destination?escapeHtml(v.destination)+(v.eta?' · ETA '+escapeHtml(v.eta)+etaNote:''):'—';
     return `<tr data-imo="${escapeHtml(v.imo)}">
       <td>${escapeHtml(v.name||'—')}</td>
       <td>${escapeHtml(v.imo)}</td>
