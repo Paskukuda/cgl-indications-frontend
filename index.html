@@ -54,7 +54,7 @@ body,*{scrollbar-width:thin;scrollbar-color:var(--border) transparent}
 .add-voyage-btn{flex-shrink:0;padding:7px 14px;border-radius:20px;border:1.5px dashed var(--border);background:transparent;color:var(--text-muted);font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap}
 
 .cargo-bar{background:var(--tab-bg);border-bottom:1px solid var(--border);position:relative;z-index:99}
-.cargo-bar-inner{max-width:1180px;margin:0 auto;padding:10px 20px;display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.cargo-bar-inner{max-width:1180px;margin:0 auto;padding:10px 66px 10px 20px;display:flex;flex-wrap:wrap;align-items:center;gap:8px}
 .cargo-pill{display:flex;align-items:center;gap:8px;padding:7px 14px;border-radius:20px;border:1.5px solid var(--border);background:var(--card);cursor:pointer;font-size:12px;font-weight:600;color:var(--text-muted);white-space:nowrap}
 .cargo-pill.active{background:var(--btn-dark-bg);color:var(--btn-dark-fg);border-color:transparent}
 .cargo-pill .del-x{opacity:.45;font-size:12px}
@@ -64,7 +64,7 @@ body,*{scrollbar-width:thin;scrollbar-color:var(--border) transparent}
 .cargo-pill.editing{cursor:grab;gap:6px;padding:6px 10px}
 .cargo-pill.dragging{opacity:.35}
 .cargo-pill.drag-over{outline:2px dashed var(--text-muted);outline-offset:2px}
-.cargo-edit-btn{margin-left:auto;flex-shrink:0;display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:20px;border:1.5px solid var(--border);background:transparent;color:var(--text-muted);font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;font-family:inherit}
+.cargo-edit-btn{position:absolute;top:8px;right:20px;width:34px;height:34px;display:flex;align-items:center;justify-content:center;border-radius:8px;border:0.5px solid var(--border);background:transparent;color:var(--text-muted);cursor:pointer;font-family:inherit}
 .cargo-edit-btn.active{background:var(--btn-dark-bg);color:var(--btn-dark-fg);border-color:transparent}
 .ais-filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;align-items:end}
 .ais-filters .field{margin-bottom:0}
@@ -323,7 +323,8 @@ const ICONS={
   filedown:'<path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/><path d="M9.5 15.5L12 18l2.5-2.5"/><line x1="12" y1="12" x2="12" y2="18"/>',
   copy:'<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>',
   ship:'<path d="M4 15l1.5 4.5a2 2 0 0 0 1.9 1.5h9.2a2 2 0 0 0 1.9-1.5L20 15"/><path d="M6 15V8h12v7"/><line x1="12" y1="3" x2="12" y2="8"/><line x1="9" y1="5" x2="15" y2="5"/>',
-  settings:'<line x1="4" y1="6" x2="20" y2="6"/><circle cx="9" cy="6" r="2"/><line x1="4" y1="12" x2="20" y2="12"/><circle cx="15" cy="12" r="2"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="7" cy="18" r="2"/>'
+  settings:'<line x1="4" y1="6" x2="20" y2="6"/><circle cx="9" cy="6" r="2"/><line x1="4" y1="12" x2="20" y2="12"/><circle cx="15" cy="12" r="2"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="7" cy="18" r="2"/>',
+  pencil:'<path d="M4 20l1-4.5L15.5 5 19 8.5 8.5 19z"/><path d="M13.5 6.5L17.5 10.5"/>'
 };
 function icon(name,size){
   size=size||16;
@@ -1332,7 +1333,7 @@ function renderCargoPills(){
   const editBtn=document.createElement('button');
   editBtn.className='cargo-edit-btn'+(cargoEditMode?' active':'');
   editBtn.title=cargoEditMode?'Finish editing':'Reorder, rename, add or delete cargoes';
-  editBtn.innerHTML=cargoEditMode?'✓ Done':icon('settings',13)+' Edit cargoes';
+  editBtn.innerHTML=cargoEditMode?icon('checksquare',16):icon('pencil',16);
   editBtn.onclick=()=>{ cargoEditMode=!cargoEditMode; renderCargoPills(); };
   wrap.appendChild(editBtn);
 }
