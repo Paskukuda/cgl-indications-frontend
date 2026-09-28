@@ -53,12 +53,22 @@ body,*{scrollbar-width:thin;scrollbar-color:var(--border) transparent}
 .voyage-pill .del-x:hover{opacity:1;color:var(--err)}
 .add-voyage-btn{flex-shrink:0;padding:7px 14px;border-radius:20px;border:1.5px dashed var(--border);background:transparent;color:var(--text-muted);font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap}
 
-.cargo-bar{background:var(--tab-bg);border-bottom:1px solid var(--border);position:sticky;top:54px;z-index:99}
-.cargo-bar-inner{max-width:1180px;margin:0 auto;padding:10px 20px;display:flex;align-items:center;gap:8px;overflow-x:auto}
+.cargo-bar{background:var(--tab-bg);border-bottom:1px solid var(--border);position:relative;z-index:99}
+.cargo-bar-inner{max-width:1180px;margin:0 auto;padding:10px 20px;display:flex;flex-wrap:wrap;align-items:center;gap:8px}
 .cargo-pill{display:flex;align-items:center;gap:8px;padding:7px 14px;border-radius:20px;border:1.5px solid var(--border);background:var(--card);cursor:pointer;font-size:12px;font-weight:600;color:var(--text-muted);white-space:nowrap}
 .cargo-pill.active{background:var(--btn-dark-bg);color:var(--btn-dark-fg);border-color:transparent}
 .cargo-pill .del-x{opacity:.45;font-size:12px}
 .cargo-pill .del-x:hover{opacity:1;color:var(--err)}
+.cargo-pill .pill-btn{opacity:.5;font-size:13px;padding:0 1px;cursor:pointer;user-select:none}
+.cargo-pill .pill-btn:hover{opacity:1}
+.cargo-pill.editing{cursor:grab;gap:6px;padding:6px 10px}
+.cargo-pill.dragging{opacity:.35}
+.cargo-pill.drag-over{outline:2px dashed var(--text-muted);outline-offset:2px}
+.cargo-edit-btn{margin-left:auto;flex-shrink:0;display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:20px;border:1.5px solid var(--border);background:transparent;color:var(--text-muted);font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;font-family:inherit}
+.cargo-edit-btn.active{background:var(--btn-dark-bg);color:var(--btn-dark-fg);border-color:transparent}
+.ais-filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;align-items:end}
+.ais-filters .field{margin-bottom:0}
+.ais-filters select{width:100%;font-size:13px;border:1px solid var(--border);border-radius:6px;padding:8px 10px;background:var(--input-bg);color:var(--text);font-family:inherit}
 .add-cargo-btn{flex-shrink:0;padding:7px 14px;border-radius:20px;border:1.5px dashed var(--border);background:transparent;color:var(--text-muted);font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap}
 
 .wrap{max-width:1180px;margin:0 auto;padding:20px 20px 60px}
@@ -583,25 +593,95 @@ async function apiRequest(method, path, body){
   if(!resp.ok){
     let detail='';
     try{ const j=await resp.json(); detail=j.detail||''; }catch(e){}
-    throw new Error('Server error '+resp.status+(detail?': '+detail:''));
+    const httpErr=new Error('Server error '+resp.status+(detail?': '+detail:''));
+    httpErr.status=resp.status;
+    throw httpErr;
   }
   return resp.json();
 }
 
 let saveTimer=null;
+/* ── Shared data vs. this browser's view ──────────────────────────────────
+   The board/notes/voyages live in ONE shared blob on the server that the
+   indications chat, scripts and other tabs also write to. Two rules keep a
+   stale page from wiping their work:
+   1. Only real DATA edits are saved to the server. Merely navigating (which
+      cargo/tab/tonnage you are looking at) is kept in this browser only.
+   2. Every save says which server version it was based on; if the server has
+      moved on since, the save is refused (409) and the page reloads. */
+let serverVersion=null;
+let savePending=false;
+const UI_STATE_KEY='cgl_ui_state';
+function saveUiState(){
+  try{
+    const b=state.board||{};
+    safeStorage.setItem(UI_STATE_KEY, JSON.stringify({
+      activeMainTab:state.activeMainTab, activeId:state.activeId,
+      activeCargo:b.activeCargo, activeDirection:b.activeDirection,
+      activeLot:b.activeLot===undefined?null:b.activeLot, faqMode:!!b.faqMode
+    }));
+  }catch(e){}
+}
+function applyUiOverlay(){
+  let ui=null;
+  try{ ui=JSON.parse(safeStorage.getItem(UI_STATE_KEY)||'null'); }catch(e){}
+  if(!ui) return;
+  if(ui.activeMainTab) state.activeMainTab=ui.activeMainTab;
+  if(ui.activeId && (state.voyages||[]).some(v=>v.id===ui.activeId)) state.activeId=ui.activeId;
+  const b=state.board;
+  if(!b) return;
+  if(ui.activeCargo && b.cargoData && b.cargoData[ui.activeCargo]) b.activeCargo=ui.activeCargo;
+  if(ui.activeDirection) b.activeDirection=ui.activeDirection;
+  b.activeLot=ui.activeLot===undefined?null:ui.activeLot;
+  if(typeof ui.faqMode==='boolean') b.faqMode=ui.faqMode;
+}
+function adoptServerState(res){
+  state=Object.assign({activeMainTab:'board', voyages:[], activeId:null, board:null}, res.value||{});
+  serverVersion=res.updated_at||null;
+  applyUiOverlay();
+  normalizeState();
+}
+async function handleSaveConflict(){
+  const m=document.getElementById('autosave-msg');
+  try{
+    const res=await apiRequest('GET','/api/state');
+    if(res.value){ adoptServerState(res); render(); }
+  }catch(e){}
+  m.textContent='⚠ not saved — data changed elsewhere'; m.style.color='var(--warn)'; m.classList.add('show');
+  alert('The data was changed elsewhere (the indications chat, a script or another tab) after this page loaded, so your last edit was NOT saved.\n\nThe page now shows the latest version — please repeat the edit.');
+}
+let lastServerCheck=0;
+async function checkForServerChanges(){
+  if(!getToken() || !state || savePending) return;
+  if(Date.now()-lastServerCheck<5000) return;
+  lastServerCheck=Date.now();
+  const ae=document.activeElement;
+  if(ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) return;   // don't yank the page while typing
+  try{
+    const res=await apiRequest('GET','/api/state');
+    if(res.value && res.updated_at && res.updated_at!==serverVersion){ adoptServerState(res); render(); }
+  }catch(e){}
+}
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden) checkForServerChanges(); });
+window.addEventListener('focus',checkForServerChanges);
+
 function saveState(){
   const m=document.getElementById('autosave-msg');
   m.textContent='saving…'; m.style.color='var(--text-muted)'; m.classList.add('show');
   clearTimeout(saveTimer);
+  savePending=true;
   saveTimer=setTimeout(async ()=>{
     try{
-      await apiRequest('PUT','/api/state', {value: state});
+      const res=await apiRequest('PUT','/api/state', {value: state, base_updated_at: serverVersion});
+      if(res && res.updated_at) serverVersion=res.updated_at;
       m.textContent='✓ saved'; m.style.color='var(--success)';
     }catch(err){
+      if(err.status===409){ savePending=false; await handleSaveConflict(); return; }
       if(err.message!=='Session expired'){
         m.textContent='⚠ save failed: '+err.message; m.style.color='var(--warn)';
       }
     }
+    savePending=false;
     setTimeout(()=>m.classList.remove('show'),1800);
   }, 500);
 }
@@ -680,12 +760,7 @@ function onAuthSuccess(){
 async function loadRemoteStateAndRender(){
   try{
     const res=await apiRequest('GET','/api/state');
-    if(res.value){
-      state=Object.assign({activeMainTab:'board', voyages:[], activeId:null, board:null}, res.value);
-    }else{
-      state={activeMainTab:'board', voyages:[], activeId:null, board:null};
-    }
-    normalizeState();
+    adoptServerState(res);
     onAuthSuccess();
   }catch(err){
     if(err.message!=='Session expired'){
@@ -705,11 +780,7 @@ async function refreshFromServer(){
   btn.disabled=true;
   try{
     const res=await apiRequest('GET','/api/state');
-    if(res.value){
-      state=Object.assign({activeMainTab:state.activeMainTab, voyages:[], activeId:null, board:null}, res.value);
-      normalizeState();
-      render();
-    }
+    if(res.value){ adoptServerState(res); render(); }
   }catch(e){ /* apiRequest already surfaces auth errors via showAuthGate */ }
   btn.disabled=false;
 }
@@ -968,12 +1039,56 @@ function activeVoyage(){return state.voyages.find(v=>v.id===state.activeId);}
 let aisCache=[];
 let aisDisclaimer='';
 let aisShowAllTypes=false;
+const AIS_FILTERS_KEY='cgl_ais_filters';
+let aisFilters={port:'',radius:'30',dwtMin:'',dwtMax:'',loaMin:'',loaMax:''};
+try{ Object.assign(aisFilters, JSON.parse(safeStorage.getItem(AIS_FILTERS_KEY)||'{}')); }catch(e){}
+let aisPorts=['CVB'];
+let aisFilterTimer=null;
+function aisPortOptionsHtml(){
+  return '<option value="">Anywhere</option>'+aisPorts.map(n=>`<option value="${escapeHtml(n)}"${aisFilters.port===n?' selected':''}>${n==='CVB'?'CVB (Constanta + Varna + Burgas)':escapeHtml(n)}</option>`).join('');
+}
+function aisQuery(){
+  const q=[];
+  if(aisShowAllTypes) q.push('all_types=true');
+  const f=aisFilters;
+  if(f.port){ q.push('port='+encodeURIComponent(f.port)); q.push('radius_nm='+(parseFloat(f.radius)||30)); }
+  [['dwt_min',f.dwtMin],['dwt_max',f.dwtMax],['loa_min',f.loaMin],['loa_max',f.loaMax]].forEach(([k,v])=>{
+    const n=parseFloat(v); if(String(v).trim()!=='' && !isNaN(n)) q.push(k+'='+n);
+  });
+  q.push('limit=500');
+  return '?'+q.join('&');
+}
+function readAisFilters(){
+  aisFilters={
+    port:document.getElementById('ais-f-port').value,
+    radius:document.getElementById('ais-f-radius').value,
+    dwtMin:document.getElementById('ais-f-dwtmin').value, dwtMax:document.getElementById('ais-f-dwtmax').value,
+    loaMin:document.getElementById('ais-f-loamin').value, loaMax:document.getElementById('ais-f-loamax').value
+  };
+  try{ safeStorage.setItem(AIS_FILTERS_KEY, JSON.stringify(aisFilters)); }catch(e){}
+}
 async function renderAisMain(){
   const wrap=document.getElementById('main-wrap');
+  const f=aisFilters;
   wrap.innerHTML=`
-    <div class="page-actions-row" style="justify-content:space-between">
+    <div class="card" style="margin-bottom:12px">
+      <div class="ais-filters">
+        <div class="field"><label>Near port</label><select id="ais-f-port">${aisPortOptionsHtml()}</select></div>
+        <div class="field"><label>Radius, nm</label><input type="number" id="ais-f-radius" min="1" value="${escapeHtml(f.radius)}"></div>
+        <div class="field"><label>DWT from</label><input type="number" id="ais-f-dwtmin" placeholder="e.g. 20000" value="${escapeHtml(f.dwtMin)}"></div>
+        <div class="field"><label>DWT to</label><input type="number" id="ais-f-dwtmax" placeholder="e.g. 40000" value="${escapeHtml(f.dwtMax)}"></div>
+        <div class="field"><label>Hull length from, m</label><input type="number" id="ais-f-loamin" placeholder="e.g. 160" value="${escapeHtml(f.loaMin)}"></div>
+        <div class="field"><label>Hull length to, m</label><input type="number" id="ais-f-loamax" placeholder="e.g. 190" value="${escapeHtml(f.loaMax)}"></div>
+      </div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:8px">Hull length is only used for ships whose DWT is not known yet — with a DWT range set, those still show up if their length fits.</div>
+    </div>
+    <div class="page-actions-row" style="justify-content:space-between;align-items:center">
       <label class="ai-toggle" style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="ais-all-types-cb" ${aisShowAllTypes?'checked':''}> show all vessel types (incl. non-cargo)</label>
-      <button class="export-btn" id="ais-refresh-btn">${icon('refresh')} Refresh now</button>
+      <span id="ais-count" style="font-size:12px;color:var(--text-muted)"></span>
+      <span style="display:flex;gap:8px">
+        <button class="export-btn" id="ais-reset-btn">Reset filters</button>
+        <button class="export-btn" id="ais-refresh-btn">${icon('refresh')} Refresh now</button>
+      </span>
     </div>
     <div class="hint-box" id="ais-disclaimer">Loading…</div>
     <div class="tile-board-card">
@@ -981,6 +1096,18 @@ async function renderAisMain(){
     </div>`;
   document.getElementById('ais-refresh-btn').onclick=loadAisVessels;
   document.getElementById('ais-all-types-cb').onchange=(e)=>{ aisShowAllTypes=e.target.checked; loadAisVessels(); };
+  ['ais-f-port','ais-f-radius','ais-f-dwtmin','ais-f-dwtmax','ais-f-loamin','ais-f-loamax'].forEach(id=>{
+    const el=document.getElementById(id);
+    el.addEventListener(id==='ais-f-port'?'change':'input',()=>{
+      clearTimeout(aisFilterTimer);
+      aisFilterTimer=setTimeout(()=>{ readAisFilters(); loadAisVessels(); }, 400);
+    });
+  });
+  document.getElementById('ais-reset-btn').onclick=()=>{
+    aisFilters={port:'',radius:'30',dwtMin:'',dwtMax:'',loaMin:'',loaMax:''};
+    try{ safeStorage.setItem(AIS_FILTERS_KEY, JSON.stringify(aisFilters)); }catch(e){}
+    renderAisMain();
+  };
   await loadAisVessels();
 }
 function aisStaleLabel(v){
@@ -1000,6 +1127,7 @@ function buildAisTableHtml(vessels){
     const sizeText=[
       v.loa?Math.round(v.loa)+'m LOA':null,
       v.max_draught?v.max_draught+'m draught':null,
+      v.size_match==='hull length (DWT unknown)'?'<span style="color:var(--estimate-clr)">fits by hull length</span>':null,
     ].filter(Boolean).join(' · ')||'—';
     let speedCls='', speedText='—';
     if(v.sog!=null){
@@ -1070,9 +1198,19 @@ async function loadAisVessels(){
   const btn=document.getElementById('ais-refresh-btn');
   if(btn) btn.disabled=true;
   try{
-    const res=await apiRequest('GET','/api/vessels'+(aisShowAllTypes?'?all_types=true':''));
+    const res=await apiRequest('GET','/api/vessels'+aisQuery());
     aisCache=res.vessels||[];
     aisDisclaimer=res.disclaimer||'';
+    if(res.ports && res.ports.join()!==aisPorts.join()){
+      aisPorts=res.ports;
+      const sel=document.getElementById('ais-f-port');
+      if(sel) sel.innerHTML=aisPortOptionsHtml();
+    }
+    const cnt=document.getElementById('ais-count');
+    if(cnt){
+      const total=res.total_matching!=null?res.total_matching:aisCache.length;
+      cnt.textContent=aisCache.length+(total>aisCache.length?' of '+total:'')+' vessels';
+    }
     if(disclaimerEl) disclaimerEl.textContent=aisDisclaimer;
     if(tableWrap){ tableWrap.innerHTML=buildAisTableHtml(aisCache); attachAisTableHandlers(); }
   }catch(e){
@@ -1087,7 +1225,7 @@ async function loadAisVessels(){
    ══════════════════════════════════════════════════════════ */
 function setMainTab(tab){
   state.activeMainTab=tab;
-  saveState();
+  saveUiState();
   render();
 }
 
@@ -1112,37 +1250,91 @@ function visibleRoutes(cargo){
   return cargo.routes.filter(r=>r.direction===state.board.activeDirection);
 }
 
+let cargoEditMode=false;
+let cargoDragId=null;
+/* order = the saved custom order (state.board.cargoOrder), then any cargo not in it yet
+   (e.g. one just added by the chat) at the end */
+function orderedCargoIds(){
+  const ids=Object.keys(state.board.cargoData);
+  const order=(state.board.cargoOrder||[]).filter(id=>ids.includes(id));
+  ids.forEach(id=>{ if(!order.includes(id)) order.push(id); });
+  return order;
+}
+function reorderCargo(fromId,toId){
+  if(!fromId||fromId===toId) return;
+  const order=orderedCargoIds();
+  const from=order.indexOf(fromId), to=order.indexOf(toId);
+  if(from<0||to<0) return;
+  order.splice(to,0,order.splice(from,1)[0]);
+  state.board.cargoOrder=order;
+  saveState(); renderCargoPills();
+}
+function moveCargo(cid,delta){
+  const order=orderedCargoIds();
+  const i=order.indexOf(cid), j=i+delta;
+  if(i<0||j<0||j>=order.length) return;
+  reorderCargo(cid, order[j]);
+}
 function renderCargoPills(){
   const wrap=document.getElementById('cargo-pills');
   wrap.innerHTML='';
-  Object.keys(state.board.cargoData).forEach(cid=>{
+  orderedCargoIds().forEach(cid=>{
     const c=state.board.cargoData[cid];
     const pill=document.createElement('div');
-    pill.className='cargo-pill'+(cid===state.board.activeCargo?' active':'');
-    pill.innerHTML=`<span>${escapeHtml(c.label)}</span><span class="del-x" title="Delete cargo">✕</span>`;
-    pill.querySelector('span').onclick=()=>{state.board.activeCargo=cid;state.board.activeLot=null;saveState();render();};
-    pill.querySelector('.del-x').onclick=(e)=>{
-      e.stopPropagation();
-      if(Object.keys(state.board.cargoData).length===1){alert('Cannot delete the only cargo');return;}
-      if(!confirm('Delete cargo "'+c.label+'" with all its directions?'))return;
-      delete state.board.cargoData[cid];
-      if(state.board.activeCargo===cid) state.board.activeCargo=Object.keys(state.board.cargoData)[0];
-      saveState();render();
-    };
+    pill.className='cargo-pill'+(cid===state.board.activeCargo?' active':'')+(cargoEditMode?' editing':'');
+    pill.dataset.cid=cid;
+    pill.innerHTML=cargoEditMode
+      ? `<span class="pill-btn pill-left" title="Move left">‹</span><span class="pill-name">${escapeHtml(c.label)}</span><span class="pill-btn pill-rename" title="Rename">✎</span><span class="pill-btn pill-right" title="Move right">›</span><span class="pill-btn del-x" title="Delete cargo">✕</span>`
+      : `<span class="pill-name">${escapeHtml(c.label)}</span>`;
+    pill.querySelector('.pill-name').onclick=()=>{state.board.activeCargo=cid;state.board.activeLot=null;saveUiState();render();};
+    if(cargoEditMode){
+      pill.querySelector('.pill-left').onclick=(e)=>{e.stopPropagation();moveCargo(cid,-1);};
+      pill.querySelector('.pill-right').onclick=(e)=>{e.stopPropagation();moveCargo(cid,1);};
+      pill.querySelector('.pill-rename').onclick=(e)=>{
+        e.stopPropagation();
+        const name=prompt('Cargo name:', c.label);
+        if(name===null||!name.trim()) return;
+        c.label=name.trim();
+        saveState(); render();
+      };
+      pill.querySelector('.del-x').onclick=(e)=>{
+        e.stopPropagation();
+        if(Object.keys(state.board.cargoData).length===1){alert('Cannot delete the only cargo');return;}
+        if(!confirm('Delete cargo "'+c.label+'" with all its directions?'))return;
+        delete state.board.cargoData[cid];
+        state.board.cargoOrder=(state.board.cargoOrder||[]).filter(x=>x!==cid);
+        if(state.board.activeCargo===cid) state.board.activeCargo=orderedCargoIds()[0];
+        saveState();render();
+      };
+      pill.draggable=true;
+      pill.ondragstart=(e)=>{ cargoDragId=cid; pill.classList.add('dragging'); if(e.dataTransfer){ e.dataTransfer.effectAllowed='move'; try{e.dataTransfer.setData('text/plain',cid);}catch(x){} } };
+      pill.ondragend=()=>{ cargoDragId=null; document.querySelectorAll('.cargo-pill').forEach(p=>p.classList.remove('dragging','drag-over')); };
+      pill.ondragover=(e)=>{ e.preventDefault(); if(e.dataTransfer) e.dataTransfer.dropEffect='move'; pill.classList.add('drag-over'); };
+      pill.ondragleave=()=>pill.classList.remove('drag-over');
+      pill.ondrop=(e)=>{ e.preventDefault(); pill.classList.remove('drag-over'); reorderCargo(cargoDragId, cid); };
+    }
     wrap.appendChild(pill);
   });
-  const addBtn=document.createElement('button');
-  addBtn.className='add-cargo-btn';
-  addBtn.textContent='＋ Cargo';
-  addBtn.onclick=()=>{
-    const name=prompt('Cargo name (e.g. Soybean, Barley, Meal):','');
-    if(name===null||name===undefined||!name.trim())return;
-    const id='cg'+Date.now();
-    state.board.cargoData[id]={label:name.trim(), routes:[]};
-    state.board.activeCargo=id;
-    saveState();render();
-  };
-  wrap.appendChild(addBtn);
+  if(cargoEditMode){
+    const addBtn=document.createElement('button');
+    addBtn.className='add-cargo-btn';
+    addBtn.textContent='＋ Cargo';
+    addBtn.onclick=()=>{
+      const name=prompt('Cargo name (e.g. Soybean, Barley, Meal):','');
+      if(name===null||name===undefined||!name.trim())return;
+      const id='cg'+Date.now();
+      state.board.cargoData[id]={label:name.trim(), routes:[]};
+      state.board.activeCargo=id;
+      saveState();render();
+    };
+    wrap.appendChild(addBtn);
+  }
+  const editBtn=document.createElement('button');
+  editBtn.className='cargo-edit-btn'+(cargoEditMode?' active':'');
+  editBtn.title=cargoEditMode?'Finish editing':'Reorder, rename, add or delete cargoes';
+  editBtn.innerHTML=cargoEditMode?'✓ Done':icon('settings',13)+' Edit cargoes';
+  editBtn.onclick=()=>{ cargoEditMode=!cargoEditMode; renderCargoPills(); };
+  wrap.appendChild(editBtn);
 }
 
 function ideaHtml(list,cls,titleText){
@@ -1354,10 +1546,10 @@ function updateDirectionButtons(){
 function attachBoardHandlers(){
   const obBtn=document.getElementById('dir-outbound-btn');
   const bhBtn=document.getElementById('dir-backhaul-btn');
-  if(obBtn) obBtn.onclick=()=>{state.board.activeDirection='outbound';state.board.activeLot=null;saveState();renderBoardMain();};
-  if(bhBtn) bhBtn.onclick=()=>{state.board.activeDirection='backhaul';state.board.activeLot=null;saveState();renderBoardMain();};
+  if(obBtn) obBtn.onclick=()=>{state.board.activeDirection='outbound';state.board.activeLot=null;saveUiState();renderBoardMain();};
+  if(bhBtn) bhBtn.onclick=()=>{state.board.activeDirection='backhaul';state.board.activeLot=null;saveUiState();renderBoardMain();};
   document.querySelectorAll('.lot-btn').forEach(btn=>{
-    btn.onclick=()=>{state.board.activeLot=btn.dataset.lot;saveState();renderBoardMain();};
+    btn.onclick=()=>{state.board.activeLot=btn.dataset.lot;saveUiState();renderBoardMain();};
   });
   const exportBtn=document.getElementById('export-pdf-btn');
   if(exportBtn) exportBtn.onclick=openExportModal;
@@ -1366,7 +1558,7 @@ function attachBoardHandlers(){
     indFaqBtn.classList.toggle('active', !!state.board.faqMode);
     indFaqBtn.onclick=()=>{
       state.board.faqMode=!state.board.faqMode;
-      saveState();
+      saveUiState();
       renderBoardMain();
     };
   }
@@ -1915,7 +2107,7 @@ function renderVoyagePills(){
     pill.innerHTML=`<span class="prog-dot" style="background:${pct===100?'var(--success)':pct>0?'var(--warn)':'var(--status-none-fg)'}"></span>
       <span>${escapeHtml(voyageLabel(v))}</span><span class="del-x" title="Delete voyage">✕</span>`;
     const nameSpan=pill.querySelector('span:nth-child(2)');
-    nameSpan.onclick=()=>{state.activeId=v.id;saveState();render();};
+    nameSpan.onclick=()=>{state.activeId=v.id;saveUiState();render();};
     nameSpan.title='Click — open voyage. Double-click — rename vessel.';
     nameSpan.ondblclick=(e)=>{
       e.stopPropagation();
@@ -1925,7 +2117,7 @@ function renderVoyagePills(){
       v.header.mv=name.trim();
       saveState();render();
     };
-    pill.querySelector('.prog-dot').onclick=()=>{state.activeId=v.id;saveState();render();};
+    pill.querySelector('.prog-dot').onclick=()=>{state.activeId=v.id;saveUiState();render();};
     pill.querySelector('.del-x').onclick=(e)=>{
       e.stopPropagation();
       if(state.voyages.length===1){alert('Cannot delete the only voyage');return;}
