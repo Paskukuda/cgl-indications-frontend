@@ -1023,7 +1023,7 @@ function buildAisTableHtml(vessels){
       <td>${escapeHtml(v.imo)}</td>
       <td>${escapeHtml(v.mmsi||'—')}</td>
       <td class="ais-type-cell" data-imo="${escapeHtml(v.imo)}" style="cursor:pointer" title="Click to correct the type manually">${typeText}</td>
-      <td class="ais-dwt-cell" data-imo="${escapeHtml(v.imo)}" style="cursor:pointer" title="Click to set DWT manually — not part of raw AIS">${v.dwt?Math.round(v.dwt).toLocaleString():'—'}</td>
+      <td class="ais-dwt-cell" data-imo="${escapeHtml(v.imo)}" style="cursor:pointer" title="${v.dwt_source==='name-match'?'Approximate: matched by vessel NAME against the broker position list, not confirmed by IMO (checked against the hull length from AIS). Click to enter the exact figure.':'Click to set DWT manually — not part of raw AIS'}">${v.dwt?(v.dwt_source==='name-match'?'≈ ':'')+Math.round(v.dwt).toLocaleString():'—'}</td>
       <td class="tile-sub" style="display:table-cell">${sizeText}</td>
       <td>${escapeHtml(v.nearest_port||'—')}${v.distance_nm!=null?' · '+v.distance_nm+' nm':''}</td>
       <td class="tile-sub" style="display:table-cell" title="Self-reported by the crew — often stale or wrong, treat as a hint only">${destText}</td>
