@@ -893,8 +893,18 @@ const LOT_BRACKETS=[
   {id:'3000', label:'3,000t'},
   {id:'5000-6000', label:'5,000–6,000t'},
   {id:'6000-8000', label:'6,000–8,000t'},
-  {id:'8000-10000', label:'8,000–10,000t'}
+  {id:'8000-10000', label:'8,000–10,000t'},
+  {id:'20000-25000', label:'20,000–25,000t'},
+  {id:'25000-30000', label:'25,000–30,000t'}
 ];
+/* Only the brackets a cargo actually has routes for, in the canonical order
+   (unknown ids are still shown, just after the known ones) */
+function presentLotBrackets(routes){
+  const ids=[...new Set(routes.filter(r=>r.lot).map(r=>r.lot))];
+  const known=LOT_BRACKETS.map(b=>b.id).filter(id=>ids.includes(id));
+  const extra=ids.filter(id=>!LOT_BRACKETS.some(b=>b.id===id));
+  return known.concat(extra);
+}
 function lotBracketLabel(id){
   const b=LOT_BRACKETS.find(b=>b.id===id);
   return b?b.label:id;
@@ -1200,8 +1210,10 @@ function renderBoardMain(){
   const dirRoutes=cargo?(showToggle?visibleRoutes(cargo):(cargo.routes||[])):[];
   const showLotToggle=routesHaveMultipleLots(dirRoutes);
   if(showLotToggle && !state.board.activeLot){
-    const present=LOT_BRACKETS.map(b=>b.id).find(id=>dirRoutes.some(r=>r.lot===id));
-    state.board.activeLot=present||LOT_BRACKETS[0].id;
+    state.board.activeLot=presentLotBrackets(dirRoutes)[0]||LOT_BRACKETS[0].id;
+  }
+  if(showLotToggle && !presentLotBrackets(dirRoutes).includes(state.board.activeLot)){
+    state.board.activeLot=presentLotBrackets(dirRoutes)[0];
   }
   const routes=showLotToggle?filterByLot(dirRoutes):dirRoutes;
   const panelState=getPanelOpenState();
@@ -1217,7 +1229,7 @@ function renderBoardMain(){
             <button class="direction-btn" data-dir="backhaul" id="dir-backhaul-btn">Backhaul</button>
           </div>`:''}
           ${showLotToggle?`<div class="direction-toggle" id="lot-toggle-group">
-            ${LOT_BRACKETS.map(b=>`<button class="direction-btn lot-btn${state.board.activeLot===b.id?' active':''}" data-lot="${b.id}" id="lot-btn-${b.id}">${b.label}</button>`).join('')}
+            ${presentLotBrackets(dirRoutes).map(id=>`<button class="direction-btn lot-btn${state.board.activeLot===id?' active':''}" data-lot="${id}" id="lot-btn-${id}">${lotBracketLabel(id)}</button>`).join('')}
           </div>`:''}
         </div>`:''}
         <div class="tile-board-card">
