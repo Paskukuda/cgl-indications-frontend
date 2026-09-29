@@ -54,7 +54,7 @@ body,*{scrollbar-width:thin;scrollbar-color:var(--border) transparent}
 .add-voyage-btn{flex-shrink:0;padding:7px 14px;border-radius:20px;border:1.5px dashed var(--border);background:transparent;color:var(--text-muted);font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap}
 
 .cargo-bar{background:var(--tab-bg);border-bottom:1px solid var(--border);position:relative;z-index:99}
-.cargo-bar-inner{max-width:1180px;margin:0 auto;padding:10px 66px 10px 20px;display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.cargo-bar-inner{max-width:1180px;margin:0 auto;padding:10px 20px;display:flex;flex-wrap:wrap;align-items:center;gap:8px}
 .cargo-pill{display:flex;align-items:center;gap:8px;padding:7px 14px;border-radius:20px;border:1.5px solid var(--border);background:var(--card);cursor:pointer;font-size:12px;font-weight:600;color:var(--text-muted);white-space:nowrap}
 .cargo-pill.active{background:var(--btn-dark-bg);color:var(--btn-dark-fg);border-color:transparent}
 .cargo-pill .del-x{opacity:.45;font-size:12px}
@@ -64,8 +64,7 @@ body,*{scrollbar-width:thin;scrollbar-color:var(--border) transparent}
 .cargo-pill.editing{cursor:grab;gap:6px;padding:6px 10px}
 .cargo-pill.dragging{opacity:.35}
 .cargo-pill.drag-over{outline:2px dashed var(--text-muted);outline-offset:2px}
-.cargo-edit-btn{position:absolute;top:8px;right:20px;width:34px;height:34px;display:flex;align-items:center;justify-content:center;border-radius:8px;border:0.5px solid var(--border);background:transparent;color:var(--text-muted);cursor:pointer;font-family:inherit}
-.cargo-edit-btn.active{background:var(--btn-dark-bg);color:var(--btn-dark-fg);border-color:transparent}
+#cargo-edit-topbtn.active{background:var(--btn-dark-bg);color:var(--btn-dark-fg);border-color:transparent}
 .ais-filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;align-items:end}
 .ais-filters .field{margin-bottom:0}
 .ais-filters select{width:100%;font-size:13px;border:1px solid var(--border);border-radius:6px;padding:8px 10px;background:var(--input-bg);color:var(--text);font-family:inherit}
@@ -291,6 +290,7 @@ details.section summary .sec-count.all-done{color:var(--success);background:var(
     </div>
     <span class="autosave-msg" id="autosave-msg">✓ saved</span>
     <div class="tab-spacer"></div>
+    <button class="logout-btn" id="cargo-edit-topbtn" onclick="toggleCargoEditMode()" title="Reorder, rename, add or delete cargoes" style="display:none"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l1-4.5L15.5 5 19 8.5 8.5 19z"/><path d="M13.5 6.5L17.5 10.5"/></svg></button>
     <button class="logout-btn" id="refresh-btn" onclick="refreshFromServer()" title="Refresh from server" style="display:none"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 0 0-14.5-4.5M4 4v5h5"/><path d="M4 13a8 8 0 0 0 14.5 4.5M20 20v-5h-5"/></svg></button>
     <button class="logout-btn" id="logout-btn" onclick="logout()" title="Log out" style="display:none"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="10.5" width="15" height="10" rx="2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/></svg></button>
     <button class="theme-toggle" onclick="toggleTheme()" id="theme-btn" title="Toggle theme"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5z"/></svg></button>
@@ -698,6 +698,7 @@ function logout(){
   setToken('');
   document.getElementById('logout-btn').style.display='none';
   document.getElementById('refresh-btn').style.display='none';
+  document.getElementById('cargo-edit-topbtn').style.display='none';
   showAuthGate();
 }
 
@@ -708,6 +709,7 @@ function showAuthGate(message){
   document.getElementById('voyage-bar').style.display='none';
   document.getElementById('logout-btn').style.display='none';
   document.getElementById('refresh-btn').style.display='none';
+  document.getElementById('cargo-edit-topbtn').style.display='none';
   renderSignIn(message);
 }
 
@@ -755,6 +757,7 @@ function onAuthSuccess(){
   document.getElementById('main-tab-bar').style.display='';
   document.getElementById('logout-btn').style.display='';
   document.getElementById('refresh-btn').style.display='';
+  document.getElementById('cargo-edit-topbtn').style.display='';
   render();
 }
 
@@ -1236,9 +1239,17 @@ function render(){
   document.getElementById('tab-ais-btn').classList.toggle('active', state.activeMainTab==='ais');
   document.getElementById('cargo-bar').style.display = state.activeMainTab==='board' ? '' : 'none';
   document.getElementById('voyage-bar').style.display = state.activeMainTab==='checklist' ? '' : 'none';
+  document.getElementById('cargo-edit-topbtn').style.display = state.activeMainTab==='board' ? '' : 'none';
   if(state.activeMainTab==='board'){ renderCargoPills(); renderBoardMain(); }
   else if(state.activeMainTab==='checklist'){ renderVoyagePills(); renderChecklistMain(); }
   else { renderAisMain(); }
+}
+function toggleCargoEditMode(){
+  cargoEditMode=!cargoEditMode;
+  document.getElementById('cargo-edit-topbtn').classList.toggle('active', cargoEditMode);
+  document.getElementById('cargo-edit-topbtn').innerHTML = cargoEditMode ? icon('checksquare',15) : icon('pencil',15);
+  document.getElementById('cargo-edit-topbtn').title = cargoEditMode ? 'Finish editing' : 'Reorder, rename, add or delete cargoes';
+  renderCargoPills();
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -1330,12 +1341,6 @@ function renderCargoPills(){
     };
     wrap.appendChild(addBtn);
   }
-  const editBtn=document.createElement('button');
-  editBtn.className='cargo-edit-btn'+(cargoEditMode?' active':'');
-  editBtn.title=cargoEditMode?'Finish editing':'Reorder, rename, add or delete cargoes';
-  editBtn.innerHTML=cargoEditMode?icon('checksquare',16):icon('pencil',16);
-  editBtn.onclick=()=>{ cargoEditMode=!cargoEditMode; renderCargoPills(); };
-  wrap.appendChild(editBtn);
 }
 
 function ideaHtml(list,cls,titleText){
