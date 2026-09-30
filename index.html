@@ -287,6 +287,7 @@ details.section summary .sec-count.all-done{color:var(--success);background:var(
       <button class="main-tab-btn" id="tab-board-btn" onclick="setMainTab('board')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><line x1="6" y1="20" x2="6" y2="12"/><line x1="12" y1="20" x2="12" y2="6"/><line x1="18" y1="20" x2="18" y2="15"/></svg> Indications</button>
       <button class="main-tab-btn" id="tab-checklist-btn" onclick="setMainTab('checklist')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><rect x="3.5" y="3.5" width="17" height="17" rx="3"/><path d="M7.5 12.3l3 3 6-6.5"/></svg> Voyage Checklist</button>
       <button class="main-tab-btn" id="tab-ais-btn" onclick="setMainTab('ais')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M4 15l1.5 4.5a2 2 0 0 0 1.9 1.5h9.2a2 2 0 0 0 1.9-1.5L20 15"/><path d="M6 15V8h12v7"/><line x1="12" y1="3" x2="12" y2="8"/><line x1="9" y1="5" x2="15" y2="5"/></svg> AIS / Vessels</button>
+      <button class="main-tab-btn" id="tab-lion-btn" onclick="setMainTab('lion')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M12 3l2.6 5.3 5.9.8-4.3 4.1 1 5.8L12 16l-5.2 2.8 1-5.8-4.3-4.1 5.9-.8z"/></svg> Lion SP</button>
     </div>
     <span class="autosave-msg" id="autosave-msg">✓ saved</span>
     <div class="tab-spacer"></div>
@@ -1071,6 +1072,193 @@ function readAisFilters(){
   };
   try{ safeStorage.setItem(AIS_FILTERS_KEY, JSON.stringify(aisFilters)); }catch(e){}
 }
+
+/* ══════════════════════════════════════════════════════════
+   LION SP — Lion Maritime's own open-positions list (uploaded .xls/.xlsx,
+   matched by vessel name — a different, simpler tool than the AIS/IMO tab)
+   ══════════════════════════════════════════════════════════ */
+let lionRegions=[];
+let lionPositions=[];
+let activeLionRegion=null;
+let lionEditMode=false;
+let lionDragId=null;
+let lionSortKey='dwt';
+let lionSortDir='asc';
+
+function toggleLionEditMode(){
+  lionEditMode=!lionEditMode;
+  document.getElementById('cargo-edit-topbtn').classList.toggle('active', lionEditMode);
+  document.getElementById('cargo-edit-topbtn').innerHTML = lionEditMode ? icon('checksquare',15) : icon('pencil',15);
+  document.getElementById('cargo-edit-topbtn').title = lionEditMode ? 'Finish editing' : 'Reorder, rename, add or delete regions';
+  renderLionRegionPills();
+}
+async function saveLionRegions(){
+  try{ await apiRequest('PUT','/api/lion-positions/regions', {regions: lionRegions.map(r=>({id:r.id,label:r.label}))}); }
+  catch(e){ if(e.message!=='Session expired') alert('Could not save regions: '+e.message); }
+}
+function renderLionRegionPills(){
+  const wrap=document.getElementById('lion-region-pills');
+  if(!wrap) return;
+  wrap.innerHTML='';
+  lionRegions.forEach(reg=>{
+    const pill=document.createElement('div');
+    pill.className='cargo-pill'+(reg.id===activeLionRegion?' active':'')+(lionEditMode?' editing':'');
+    pill.dataset.rid=reg.id;
+    const count=lionPositions.filter(p=>p.region===reg.id).length;
+    pill.innerHTML=lionEditMode
+      ? `<span class="pill-btn pill-left" title="Move left">‹</span><span class="pill-name">${escapeHtml(reg.label)}</span><span class="pill-btn pill-rename" title="Rename">✎</span><span class="pill-btn pill-right" title="Move right">›</span><span class="pill-btn del-x" title="Delete region">✕</span>`
+      : `<span class="pill-name">${escapeHtml(reg.label)} <span style="opacity:.55;font-weight:400">(${count})</span></span>`;
+    pill.querySelector('.pill-name').onclick=()=>{ activeLionRegion=reg.id; renderLionRegionPills(); renderLionTable(); };
+    if(lionEditMode){
+      const idx=lionRegions.indexOf(reg);
+      pill.querySelector('.pill-left').onclick=(e)=>{e.stopPropagation(); if(idx>0){ [lionRegions[idx-1],lionRegions[idx]]=[lionRegions[idx],lionRegions[idx-1]]; saveLionRegions(); renderLionRegionPills(); } };
+      pill.querySelector('.pill-right').onclick=(e)=>{e.stopPropagation(); if(idx<lionRegions.length-1){ [lionRegions[idx+1],lionRegions[idx]]=[lionRegions[idx],lionRegions[idx+1]]; saveLionRegions(); renderLionRegionPills(); } };
+      pill.querySelector('.pill-rename').onclick=(e)=>{
+        e.stopPropagation();
+        const name=prompt('Region name:', reg.label);
+        if(name===null||!name.trim()) return;
+        reg.label=name.trim(); saveLionRegions(); renderLionRegionPills();
+      };
+      pill.querySelector('.del-x').onclick=(e)=>{
+        e.stopPropagation();
+        if(lionRegions.length===1){ alert('Cannot delete the only region'); return; }
+        if(!confirm('Delete region "'+reg.label+'"? Vessels in it become Unsorted, not deleted.')) return;
+        lionRegions=lionRegions.filter(r=>r.id!==reg.id);
+        if(activeLionRegion===reg.id) activeLionRegion=lionRegions[0].id;
+        saveLionRegions(); loadLionPositions();
+      };
+      pill.draggable=true;
+      pill.ondragstart=()=>{ lionDragId=reg.id; pill.classList.add('dragging'); };
+      pill.ondragend=()=>{ lionDragId=null; document.querySelectorAll('#lion-region-pills .cargo-pill').forEach(p=>p.classList.remove('dragging','drag-over')); };
+      pill.ondragover=(e)=>{ e.preventDefault(); pill.classList.add('drag-over'); };
+      pill.ondragleave=()=>pill.classList.remove('drag-over');
+      pill.ondrop=(e)=>{
+        e.preventDefault(); pill.classList.remove('drag-over');
+        if(!lionDragId||lionDragId===reg.id) return;
+        const from=lionRegions.findIndex(r=>r.id===lionDragId), to=lionRegions.findIndex(r=>r.id===reg.id);
+        lionRegions.splice(to,0,lionRegions.splice(from,1)[0]);
+        saveLionRegions(); renderLionRegionPills();
+      };
+    }
+    wrap.appendChild(pill);
+  });
+  const unsorted=lionPositions.filter(p=>!p.region).length;
+  if(unsorted){
+    const pill=document.createElement('div');
+    pill.className='cargo-pill'+(activeLionRegion==='__unsorted__'?' active':'');
+    pill.innerHTML=`<span class="pill-name">Unsorted <span style="opacity:.55;font-weight:400">(${unsorted})</span></span>`;
+    pill.onclick=()=>{ activeLionRegion='__unsorted__'; renderLionRegionPills(); renderLionTable(); };
+    wrap.appendChild(pill);
+  }
+  if(lionEditMode){
+    const addBtn=document.createElement('button');
+    addBtn.className='add-cargo-btn';
+    addBtn.textContent='＋ Region';
+    addBtn.onclick=()=>{
+      const name=prompt('Region name (e.g. MEAST - FEAST, US GULF):','');
+      if(name===null||!name.trim()) return;
+      lionRegions.push({id:'r'+Date.now(), label:name.trim()});
+      saveLionRegions(); renderLionRegionPills();
+    };
+    wrap.appendChild(addBtn);
+  }
+}
+function lionSortedRows(){
+  const rows=lionPositions.filter(p=> activeLionRegion==='__unsorted__' ? !p.region : p.region===activeLionRegion);
+  const dir=lionSortDir==='asc'?1:-1;
+  rows.sort((a,b)=>{
+    let av=a[lionSortKey], bv=b[lionSortKey];
+    if(lionSortKey==='dwt'||lionSortKey==='built'){ av=av||0; bv=bv||0; return (av-bv)*dir; }
+    av=(av||'').toString().toLowerCase(); bv=(bv||'').toString().toLowerCase();
+    return av<bv?-1*dir:av>bv?1*dir:0;
+  });
+  return rows;
+}
+function lionDateRangeText(p){
+  if(!p.open_from) return '—';
+  const fmt=d=>{ const dt=new Date(d+'T00:00:00'); return dt.getDate()+' '+dt.toLocaleString('en',{month:'short'}).toUpperCase(); };
+  return (!p.open_to || p.open_from===p.open_to) ? fmt(p.open_from) : fmt(p.open_from)+' - '+fmt(p.open_to);
+}
+function renderLionTable(){
+  const wrap=document.getElementById('lion-table-wrap');
+  if(!wrap) return;
+  const rows=lionSortedRows();
+  if(!rows.length){ wrap.innerHTML='<div class="idea-empty">No vessels in this region yet — upload a position list to fill it in.</div>'; return; }
+  const cols=[['vessel_name','Vessel'],['built','Built'],['dwt','Dwt'],['position','Position'],['open_from','Open from'],['comments','Comments']];
+  const arrow=(k)=> k===lionSortKey ? (lionSortDir==='asc'?' ▲':' ▼') : '';
+  const head=cols.map(([k,label])=>`<th data-sort="${k}" style="cursor:pointer;user-select:none">${label}${arrow(k)}</th>`).join('')+'<th></th>';
+  const body=rows.map(p=>`<tr data-id="${p.id}">
+      <td>${escapeHtml(p.vessel_name)}</td>
+      <td>${p.built||'—'}</td>
+      <td>${p.dwt?Math.round(p.dwt).toLocaleString():'—'}</td>
+      <td>${escapeHtml(p.position||'—')}</td>
+      <td>${escapeHtml(lionDateRangeText(p))}</td>
+      <td class="tile-sub" style="display:table-cell">${escapeHtml(p.comments||'')}${p.comments?'<br>':''}<span style="opacity:.6">upd ${escapeHtml((p.updated_at||'').slice(0,10))}</span></td>
+      <td><button class="lion-del-btn" data-id="${p.id}" title="Delete row" style="background:none;border:0;color:var(--text-muted);cursor:pointer;font-size:14px">✕</button></td>
+    </tr>`).join('');
+  wrap.innerHTML=`<div style="overflow-x:auto"><table class="ais-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
+  wrap.querySelectorAll('th[data-sort]').forEach(th=>th.onclick=()=>{
+    const k=th.dataset.sort;
+    if(k===lionSortKey) lionSortDir=lionSortDir==='asc'?'desc':'asc'; else { lionSortKey=k; lionSortDir='asc'; }
+    renderLionTable();
+  });
+  wrap.querySelectorAll('.lion-del-btn').forEach(btn=>btn.onclick=async()=>{
+    if(!confirm('Delete this vessel from the list?')) return;
+    try{ await apiRequest('DELETE','/api/lion-positions/'+btn.dataset.id); await loadLionPositions(); }
+    catch(e){ if(e.message!=='Session expired') alert('Could not delete: '+e.message); }
+  });
+}
+async function loadLionPositions(){
+  const statusEl=document.getElementById('lion-status');
+  try{
+    const res=await apiRequest('GET','/api/lion-positions');
+    lionRegions=res.regions||[];
+    lionPositions=res.positions||[];
+    if(!lionRegions.some(r=>r.id===activeLionRegion) && activeLionRegion!=='__unsorted__'){
+      activeLionRegion=lionRegions[0]?lionRegions[0].id:null;
+    }
+    if(statusEl) statusEl.textContent=lionPositions.length+' vessel'+(lionPositions.length===1?'':'s')+' across '+lionRegions.length+' region'+(lionRegions.length===1?'':'s')+' · positions expire 21 days after their open date';
+    renderLionRegionPills();
+    renderLionTable();
+  }catch(e){
+    if(e.message!=='Session expired' && statusEl) statusEl.textContent='Could not load: '+e.message;
+  }
+}
+async function handleLionUpload(e){
+  const file=e.target.files[0];
+  if(!file) return;
+  const statusEl=document.getElementById('lion-status');
+  statusEl.innerHTML='<span class="spin"></span>Reading '+escapeHtml(file.name)+'…';
+  try{
+    const b64=await new Promise((resolve,reject)=>{
+      const reader=new FileReader();
+      reader.onload=()=>resolve(reader.result.split(',')[1]);
+      reader.onerror=reject;
+      reader.readAsDataURL(file);
+    });
+    const res=await apiRequest('POST','/api/lion-positions/upload', {filename:file.name, content_base64:b64});
+    statusEl.textContent=`Imported ${res.rows_in_file} rows: ${res.added} added, ${res.updated} updated, ${res.removed_stale} removed (stale >21 days).`;
+    await loadLionPositions();
+  }catch(err){
+    statusEl.textContent = err.message==='Session expired' ? '' : 'Upload failed: '+err.message;
+  }
+  e.target.value='';
+}
+async function renderLionMain(){
+  const wrap=document.getElementById('main-wrap');
+  wrap.innerHTML=`
+    <div class="page-actions-row" style="justify-content:space-between;align-items:flex-start">
+      <div id="lion-region-pills" style="display:flex;flex-wrap:wrap;gap:8px;flex:1"></div>
+      <label class="export-btn" style="cursor:pointer;white-space:nowrap">${icon('filedown',14)} Upload position list<input type="file" id="lion-upload-input" accept=".xls,.xlsx" style="display:none"></label>
+    </div>
+    <div class="hint-box" id="lion-status">Loading…</div>
+    <div class="tile-board-card">
+      <div id="lion-table-wrap"><div class="idea-empty">Loading…</div></div>
+    </div>`;
+  document.getElementById('lion-upload-input').onchange=handleLionUpload;
+  await loadLionPositions();
+}
+
 async function renderAisMain(){
   const wrap=document.getElementById('main-wrap');
   const f=aisFilters;
@@ -1237,14 +1425,22 @@ function render(){
   document.getElementById('tab-board-btn').classList.toggle('active', state.activeMainTab==='board');
   document.getElementById('tab-checklist-btn').classList.toggle('active', state.activeMainTab==='checklist');
   document.getElementById('tab-ais-btn').classList.toggle('active', state.activeMainTab==='ais');
+  document.getElementById('tab-lion-btn').classList.toggle('active', state.activeMainTab==='lion');
   document.getElementById('cargo-bar').style.display = state.activeMainTab==='board' ? '' : 'none';
   document.getElementById('voyage-bar').style.display = state.activeMainTab==='checklist' ? '' : 'none';
-  document.getElementById('cargo-edit-topbtn').style.display = state.activeMainTab==='board' ? '' : 'none';
+  document.getElementById('cargo-edit-topbtn').style.display = (state.activeMainTab==='board'||state.activeMainTab==='lion') ? '' : 'none';
+  document.getElementById('cargo-edit-topbtn').title = state.activeMainTab==='lion'
+    ? (lionEditMode?'Finish editing':'Reorder, rename, add or delete regions')
+    : (cargoEditMode?'Finish editing':'Reorder, rename, add or delete cargoes');
+  document.getElementById('cargo-edit-topbtn').innerHTML = (state.activeMainTab==='lion'?lionEditMode:cargoEditMode) ? icon('checksquare',15) : icon('pencil',15);
+  document.getElementById('cargo-edit-topbtn').classList.toggle('active', state.activeMainTab==='lion'?lionEditMode:cargoEditMode);
   if(state.activeMainTab==='board'){ renderCargoPills(); renderBoardMain(); }
   else if(state.activeMainTab==='checklist'){ renderVoyagePills(); renderChecklistMain(); }
+  else if(state.activeMainTab==='lion'){ renderLionMain(); }
   else { renderAisMain(); }
 }
 function toggleCargoEditMode(){
+  if(state.activeMainTab==='lion'){ toggleLionEditMode(); return; }
   cargoEditMode=!cargoEditMode;
   document.getElementById('cargo-edit-topbtn').classList.toggle('active', cargoEditMode);
   document.getElementById('cargo-edit-topbtn').innerHTML = cargoEditMode ? icon('checksquare',15) : icon('pencil',15);
