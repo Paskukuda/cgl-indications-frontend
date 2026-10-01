@@ -1086,8 +1086,12 @@ let aisShowAllTypes=false;
 const AIS_FILTERS_KEY='cgl_ais_filters';
 let aisFilters={port:'',radius:'30',dwtMin:'',dwtMax:'',loaMin:'',loaMax:''};
 try{ Object.assign(aisFilters, JSON.parse(safeStorage.getItem(AIS_FILTERS_KEY)||'{}')); }catch(e){}
+let aisSearchText='';
+let aisHullFieldsOpen=!!(aisFilters.loaMin||aisFilters.loaMax);
 let aisPorts=['CVB'];
 let aisFilterTimer=null;
+let aisSearchTimer=null;
+let aisLastTotalMatching=null;
 function aisPortOptionsHtml(){
   return '<option value="">Anywhere</option>'+aisPorts.map(n=>`<option value="${escapeHtml(n)}"${aisFilters.port===n?' selected':''}>${n==='CVB'?'CVB (Constanta + Varna + Burgas)':escapeHtml(n)}</option>`).join('');
 }
@@ -1304,14 +1308,17 @@ async function renderAisMain(){
   wrap.innerHTML=`
     <div class="card" style="margin-bottom:12px">
       <div class="ais-filters">
+        <div class="field" style="flex:1.4 1 220px"><label>Search name or IMO</label><input type="text" id="ais-f-search" placeholder="e.g. DENSA EAGLE or 9432488" value="${escapeHtml(aisSearchText)}"></div>
         <div class="field"><label>Near port</label><select id="ais-f-port">${aisPortOptionsHtml()}</select></div>
         <div class="field"><label>Radius, nm</label><input type="number" id="ais-f-radius" min="1" value="${escapeHtml(f.radius)}"></div>
         <div class="field"><label>DWT from</label><input type="number" id="ais-f-dwtmin" placeholder="e.g. 20000" value="${escapeHtml(f.dwtMin)}"></div>
         <div class="field"><label>DWT to</label><input type="number" id="ais-f-dwtmax" placeholder="e.g. 40000" value="${escapeHtml(f.dwtMax)}"></div>
+        <button class="logout-btn" id="ais-hull-toggle-btn" title="${aisHullFieldsOpen?'Hide hull length filter':'Filter by hull length (for vessels with no DWT yet)'}" style="align-self:flex-end${aisHullFieldsOpen?';background:var(--btn-dark-bg);color:var(--btn-dark-fg);border-color:transparent':''}">${icon('settings',15)}</button>
+        ${aisHullFieldsOpen?`
         <div class="field"><label>Hull length from, m</label><input type="number" id="ais-f-loamin" placeholder="e.g. 160" value="${escapeHtml(f.loaMin)}"></div>
-        <div class="field"><label>Hull length to, m</label><input type="number" id="ais-f-loamax" placeholder="e.g. 190" value="${escapeHtml(f.loaMax)}"></div>
+        <div class="field"><label>Hull length to, m</label><input type="number" id="ais-f-loamax" placeholder="e.g. 190" value="${escapeHtml(f.loaMax)}"></div>`:''}
       </div>
-      <div style="font-size:11px;color:var(--text-muted);margin-top:8px">Hull length is only used for ships whose DWT is not known yet — with a DWT range set, those still show up if their length fits.</div>
+      ${aisHullFieldsOpen?'<div style="font-size:11px;color:var(--text-muted);margin-top:8px">Hull length is only used for ships whose DWT is not known yet — with a DWT range set, those still show up if their length fits.</div>':''}
     </div>
     <div class="page-actions-row" style="justify-content:space-between;align-items:center">
       <label class="ai-toggle" style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="ais-all-types-cb" ${aisShowAllTypes?'checked':''}> show all vessel types (incl. non-cargo)</label>
@@ -1327,7 +1334,14 @@ async function renderAisMain(){
     </div>`;
   document.getElementById('ais-refresh-btn').onclick=loadAisVessels;
   document.getElementById('ais-all-types-cb').onchange=(e)=>{ aisShowAllTypes=e.target.checked; loadAisVessels(); };
-  ['ais-f-port','ais-f-radius','ais-f-dwtmin','ais-f-dwtmax','ais-f-loamin','ais-f-loamax'].forEach(id=>{
+  document.getElementById('ais-hull-toggle-btn').onclick=()=>{ aisHullFieldsOpen=!aisHullFieldsOpen; renderAisMain(); };
+  document.getElementById('ais-f-search').addEventListener('input',(e)=>{
+    aisSearchText=e.target.value;
+    clearTimeout(aisSearchTimer);
+    aisSearchTimer=setTimeout(renderAisTableFromCache, 200);
+  });
+  const filterIds=['ais-f-port','ais-f-radius','ais-f-dwtmin','ais-f-dwtmax'].concat(aisHullFieldsOpen?['ais-f-loamin','ais-f-loamax']:[]);
+  filterIds.forEach(id=>{
     const el=document.getElementById(id);
     el.addEventListener(id==='ais-f-port'?'change':'input',()=>{
       clearTimeout(aisFilterTimer);
@@ -1336,10 +1350,26 @@ async function renderAisMain(){
   });
   document.getElementById('ais-reset-btn').onclick=()=>{
     aisFilters={port:'',radius:'30',dwtMin:'',dwtMax:'',loaMin:'',loaMax:''};
+    aisSearchText=''; aisHullFieldsOpen=false;
     try{ safeStorage.setItem(AIS_FILTERS_KEY, JSON.stringify(aisFilters)); }catch(e){}
     renderAisMain();
   };
   await loadAisVessels();
+}
+function renderAisTableFromCache(){
+  const tableWrap=document.getElementById('ais-table-wrap');
+  const cnt=document.getElementById('ais-count');
+  if(!tableWrap) return;
+  const q=aisSearchText.trim().toLowerCase();
+  const shown=q?aisCache.filter(v=>(v.name||'').toLowerCase().includes(q)||(v.imo||'').toLowerCase().includes(q)):aisCache;
+  if(cnt){
+    const total=aisLastTotalMatching!=null?aisLastTotalMatching:aisCache.length;
+    let txt=shown.length+(!q && total>aisCache.length?' of '+total:'')+' vessels';
+    if(q) txt=shown.length+' of '+aisCache.length+' match "'+aisSearchText.trim()+'"';
+    cnt.textContent=txt;
+  }
+  tableWrap.innerHTML=buildAisTableHtml(shown);
+  attachAisTableHandlers();
 }
 function aisStaleLabel(v){
   if(v.stale===null || v.stale===undefined) return {cls:'', text:v.last_seen?escapeHtml(v.last_seen.slice(0,16).replace('T',' ')):'no signal yet'};
@@ -1432,18 +1462,14 @@ async function loadAisVessels(){
     const res=await apiRequest('GET','/api/vessels'+aisQuery());
     aisCache=res.vessels||[];
     aisDisclaimer=res.disclaimer||'';
+    aisLastTotalMatching=res.total_matching!=null?res.total_matching:aisCache.length;
     if(res.ports && res.ports.join()!==aisPorts.join()){
       aisPorts=res.ports;
       const sel=document.getElementById('ais-f-port');
       if(sel) sel.innerHTML=aisPortOptionsHtml();
     }
-    const cnt=document.getElementById('ais-count');
-    if(cnt){
-      const total=res.total_matching!=null?res.total_matching:aisCache.length;
-      cnt.textContent=aisCache.length+(total>aisCache.length?' of '+total:'')+' vessels';
-    }
     if(disclaimerEl) disclaimerEl.textContent=aisDisclaimer;
-    if(tableWrap){ tableWrap.innerHTML=buildAisTableHtml(aisCache); attachAisTableHandlers(); }
+    if(tableWrap) renderAisTableFromCache();
   }catch(e){
     if(e.message!=='Session expired' && tableWrap) tableWrap.innerHTML='<div class="idea-empty">Could not load vessels: '+escapeHtml(e.message)+'</div>';
   }
