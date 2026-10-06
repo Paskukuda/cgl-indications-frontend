@@ -1331,7 +1331,7 @@ const WA_FIELD_LABELS=[
   ['source_chat','Source chat'],['source_sender','Source sender'],['source_date','Source date'],['note','Note'],
 ];
 let waVessels=[];
-let waDraft=null; // the parsed/editable draft row, or null when nothing is being reviewed
+let waDrafts=[]; // parsed/editable draft rows awaiting review — a message can bundle several vessels
 let waFilters={status:'',region:'',dwtMin:'',dwtMax:'',maxDraft:'',openBefore:'',insideDanube:false};
 let waSortKey='updated_at';
 let waSortDir='desc';
@@ -1378,14 +1378,20 @@ async function waParseMessage(){
   statusEl.className='ai-status';
   statusEl.innerHTML='<span class="spin"></span>Parsing…';
   const fieldList=WA_FIELD_LABELS.map(([k])=>k).filter(k=>!['status','source_chat','source_sender','source_date','note'].includes(k));
-  const systemPrompt=`You extract structured vessel-offer data from one WhatsApp message for a dry-bulk freight broker. Return ONLY a single JSON object (no markdown fences, no explanation) with exactly these keys: ${fieldList.join(', ')}.
+  const makeDefaults=()=>Object.assign(Object.fromEntries(WA_FIELD_LABELS.map(([k])=>[k,null])),
+    {status:'open', source_chat:chat||null, source_sender:sender||null, source_date:sdate||null, raw_text:raw});
+  // One WhatsApp message very often bundles several vessels/offers in a single text
+  // (e.g. a broker pasting 3 positions as one list) — so this always returns an
+  // ARRAY, one object per vessel/offer found, never a single merged object.
+  const systemPrompt=`You extract structured vessel-offer data from one WhatsApp message for a dry-bulk freight broker. The message may describe ONE vessel/offer or SEVERAL bundled together (e.g. a broker listing 3 positions as one list, or a numbered/bulleted set) — return a JSON ARRAY with one object per distinct vessel/offer found, never merge several vessels into one object and never split one vessel's fields across several objects. A message describing just one vessel still returns an array of length 1. Return ONLY the JSON array (no markdown fences, no explanation), each object having exactly these keys: ${fieldList.join(', ')}.
 
 Rules:
-- If the message names no vessel and is itself a request for cargo/tonnage (a charterer or owner asking for a cargo to fit some dwt), leave "name" null — do NOT invent a name.
+- If the message (or one bundled entry within it) names no vessel and is itself a request for cargo/tonnage (a charterer or owner asking for a cargo to fit some dwt), leave "name" null for that entry — do NOT invent a name.
+- If the message is not a vessel offer or cargo-seeking request at all (small talk, a question, an acknowledgement, a forwarded document with no vessel details, a deleted-message placeholder, etc.), return an empty array [].
 - "region" must be exactly one of: ${WA_REGIONS.map(r=>'"'+r+'"').join(', ')}, or null if you can't tell from the text.
 - "open_from"/"open_to" must be ISO dates (YYYY-MM-DD) if a year isn't given, assume the nearest future occurrence of that month/day from today (${todayStr()}); a single date with no range -> same value for both.
 - "build_year" is a 4-digit year (e.g. from "blt 1996" or "built 2021").
-- Numeric fields (dwt, dwcc, intake_mt, grain_cbft, bale_cbft, draft_m, mmsi) must be plain numbers, no units/commas, or null.
+- Numeric fields (dwt, dwcc, intake_mt, grain_cbft, bale_cbft, draft_m, mmsi) must be plain numbers, no units/commas, or null. "dwcc" and "cc" in the text both mean dwcc.
 - "restrictions" should capture things like "no UKR/RUS", "Sulina only", "cannot call Reni", etc. verbatim-ish.
 - Leave ANYTHING not stated in the message as null — never guess or fill in a plausible-sounding value.
 
@@ -1395,7 +1401,7 @@ ${raw}`;
     const headers={'Content-Type':'application/json'};
     const key=safeStorage.getItem('cgl_anthropic_key');
     if(key){ headers['x-api-key']=key; headers['anthropic-dangerous-direct-browser-access']='true'; headers['anthropic-version']='2023-06-01'; }
-    const body={ model:'claude-sonnet-4-6', max_tokens:800, system:systemPrompt, messages:[{role:'user', content:'Extract the fields.'}] };
+    const body={ model:'claude-sonnet-4-6', max_tokens:1500, system:systemPrompt, messages:[{role:'user', content:'Extract the fields.'}] };
     const resp=await fetch('https://api.anthropic.com/v1/messages',{ method:'POST', headers, body:JSON.stringify(body) });
     if(!resp.ok){
       let extra='';
@@ -1404,73 +1410,90 @@ ${raw}`;
     }
     const data=await resp.json();
     const text=(data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('\n').trim();
-    const jsonMatch=text.match(/\{[\s\S]*\}/);
-    if(!jsonMatch) throw new Error('No JSON in the response');
-    const parsed=JSON.parse(jsonMatch[0]);
-    waDraft=Object.assign(
-      Object.fromEntries(WA_FIELD_LABELS.map(([k])=>[k,null])),
-      parsed,
-      {status:'open', source_chat:chat||null, source_sender:sender||null, source_date:sdate||null, raw_text:raw}
-    );
-    statusEl.textContent='Parsed — review the fields below, then save.';
+    const jsonMatch=text.match(/\[[\s\S]*\]/);
+    if(!jsonMatch) throw new Error('No JSON array in the response');
+    let parsedArr=JSON.parse(jsonMatch[0]);
+    if(!Array.isArray(parsedArr)) parsedArr=[parsedArr];
+    if(!parsedArr.length){
+      statusEl.textContent='No vessel offer or cargo request recognized in this message — nothing to save. You can still fill a row in by hand below.';
+      statusEl.className='ai-status err';
+      waDrafts=[makeDefaults()];
+      renderWaDraftForm();
+      btn.disabled=false;
+      return;
+    }
+    waDrafts=parsedArr.map(p=>Object.assign(makeDefaults(), p));
+    statusEl.textContent=`Parsed ${waDrafts.length} vessel${waDrafts.length===1?'':'s'}/offer${waDrafts.length===1?'':'s'} — review below, then save each.`;
     statusEl.className='ai-status';
     renderWaDraftForm();
   }catch(err){
     statusEl.textContent='Parse failed: '+err.message+' — you can still fill the fields in by hand below.';
     statusEl.className='ai-status err';
-    waDraft=Object.assign(Object.fromEntries(WA_FIELD_LABELS.map(([k])=>[k,null])),
-      {status:'open', source_chat:chat||null, source_sender:sender||null, source_date:sdate||null, raw_text:raw});
+    waDrafts=[makeDefaults()];
     renderWaDraftForm();
   }
   btn.disabled=false;
 }
 
+function waDraftFieldValue(idx,k){
+  const el=document.getElementById(`wa-d-${idx}-${k}`);
+  if(!el) return null;
+  let v=el.value.trim();
+  const numeric=['build_year','dwt','dwcc','intake_mt','grain_cbft','bale_cbft','draft_m','mmsi'].includes(k);
+  return v===''?null:(numeric?Number(v):v);
+}
+
 function renderWaDraftForm(){
   const wrap=document.getElementById('wa-draft-wrap');
   if(!wrap) return;
-  if(!waDraft){ wrap.innerHTML=''; return; }
-  const d=waDraft;
-  const inputField=(k,label)=>{
-    if(k==='region') return `<div class="field"><label>${label}</label><select id="wa-d-${k}">${waRegionOptions(d.region)}</select></div>`;
-    if(k==='status') return `<div class="field"><label>${label}</label><select id="wa-d-${k}">${waStatusOptions(d.status||'open')}</select></div>`;
-    if(k==='open_from'||k==='open_to'||k==='source_date') return `<div class="field"><label>${label}</label><input type="date" id="wa-d-${k}" value="${escapeHtml(d[k]||'')}"></div>`;
+  if(!waDrafts.length){ wrap.innerHTML=''; return; }
+  const inputField=(idx,d,k,label)=>{
+    const id=`wa-d-${idx}-${k}`;
+    if(k==='region') return `<div class="field"><label>${label}</label><select id="${id}">${waRegionOptions(d.region)}</select></div>`;
+    if(k==='status') return `<div class="field"><label>${label}</label><select id="${id}">${waStatusOptions(d.status||'open')}</select></div>`;
+    if(k==='open_from'||k==='open_to'||k==='source_date') return `<div class="field"><label>${label}</label><input type="date" id="${id}" value="${escapeHtml(d[k]||'')}"></div>`;
     const numeric=['build_year','dwt','dwcc','intake_mt','grain_cbft','bale_cbft','draft_m','mmsi'].includes(k);
-    return `<div class="field"><label>${label}</label><input type="${numeric?'number':'text'}" id="wa-d-${k}" value="${escapeHtml(d[k]===null||d[k]===undefined?'':d[k])}"></div>`;
+    return `<div class="field"><label>${label}</label><input type="${numeric?'number':'text'}" id="${id}" value="${escapeHtml(d[k]===null||d[k]===undefined?'':d[k])}"></div>`;
   };
-  wrap.innerHTML=`
-    <div class="card" style="margin-top:12px">
-      <div class="section-title" style="margin-bottom:8px">Review before saving</div>
-      <div class="field-grid">${WA_FIELD_LABELS.map(([k,label])=>inputField(k,label)).join('')}</div>
+  wrap.innerHTML=waDrafts.map((d,idx)=>`
+    <div class="card" style="margin-top:12px" data-draft-idx="${idx}">
+      <div class="section-title" style="margin-bottom:8px">Review before saving${waDrafts.length>1?' — '+(idx+1)+' of '+waDrafts.length+(d.name?': '+escapeHtml(d.name):''):''}</div>
+      <div class="field-grid">${WA_FIELD_LABELS.map(([k,label])=>inputField(idx,d,k,label)).join('')}</div>
       <div style="display:flex;gap:8px;margin-top:12px">
-        <button class="btn-primary" id="wa-save-btn">${icon('checksquare',15)} Save</button>
-        <button class="export-btn" id="wa-discard-btn">Discard</button>
+        <button class="btn-primary wa-save-btn" data-idx="${idx}">${icon('checksquare',15)} Save</button>
+        <button class="export-btn wa-discard-btn" data-idx="${idx}">Discard</button>
       </div>
-      <div class="ai-status" id="wa-save-status"></div>
-    </div>`;
-  document.getElementById('wa-discard-btn').onclick=()=>{ waDraft=null; renderWaDraftForm(); document.getElementById('wa-paste-text').value=''; };
-  document.getElementById('wa-save-btn').onclick=waSaveDraft;
+      <div class="ai-status" id="wa-save-status-${idx}"></div>
+    </div>`).join('');
+  wrap.querySelectorAll('.wa-discard-btn').forEach(btn=>btn.onclick=()=>{
+    const idx=Number(btn.dataset.idx);
+    waDrafts.splice(idx,1);
+    if(!waDrafts.length) document.getElementById('wa-paste-text').value='';
+    renderWaDraftForm();
+  });
+  wrap.querySelectorAll('.wa-save-btn').forEach(btn=>btn.onclick=()=>waSaveDraft(Number(btn.dataset.idx)));
 }
 
-async function waSaveDraft(){
-  const statusEl=document.getElementById('wa-save-status');
+async function waSaveDraft(idx){
+  const statusEl=document.getElementById('wa-save-status-'+idx);
   const fields={};
-  WA_FIELD_LABELS.forEach(([k])=>{
-    const el=document.getElementById('wa-d-'+k);
-    if(!el) return;
-    let v=el.value.trim();
-    const numeric=['build_year','dwt','dwcc','intake_mt','grain_cbft','bale_cbft','draft_m','mmsi'].includes(k);
-    fields[k]= v==='' ? null : (numeric ? Number(v) : v);
-  });
-  fields.raw_text=waDraft.raw_text||null;
+  WA_FIELD_LABELS.forEach(([k])=>{ fields[k]=waDraftFieldValue(idx,k); });
+  fields.raw_text=waDrafts[idx].raw_text||null;
   statusEl.textContent='Saving…'; statusEl.className='ai-status';
   try{
     await apiRequest('POST','/api/wa-vessels', fields);
     statusEl.textContent='✓ saved';
-    document.getElementById('wa-paste-text').value='';
     await loadWaVessels();
-    // leave the draft (with its "saved" status) visible briefly before clearing it,
-    // so the confirmation message actually gets seen rather than vanishing instantly
-    setTimeout(()=>{ waDraft=null; renderWaDraftForm(); }, 900);
+    // leave the confirmation visible briefly before removing this card, so it's
+    // actually seen rather than vanishing the instant the request resolves
+    setTimeout(()=>{
+      // re-read current position in case other cards were saved/discarded meanwhile
+      const card=statusEl.closest('[data-draft-idx]');
+      const liveIdx=card?Number(card.dataset.draftIdx):idx;
+      waDrafts.splice(liveIdx,1);
+      if(!waDrafts.length) document.getElementById('wa-paste-text').value='';
+      renderWaDraftForm();
+    }, 900);
   }catch(e){
     if(e.message!=='Session expired'){ statusEl.textContent='Save failed: '+e.message; statusEl.className='ai-status err'; }
   }
