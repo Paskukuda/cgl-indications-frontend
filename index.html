@@ -1366,7 +1366,45 @@ function waStatusOptions(selected){
   return WA_STATUSES.map(s=>`<option value="${s}"${s===selected?' selected':''}>${s}</option>`).join('');
 }
 
+// WhatsApp's own "copy" puts a timestamp+sender prefix on every line, in one of two
+// formats depending on platform/export settings:
+//   iOS-style:     [13:38, 06.10.2026] Chayka Group Logistic (CGL): message text
+//   Android-style: 06.10.2026, 13:38 - Chayka Group Logistic (CGL): message text
+// so there's no need to make the user type the sender/date by hand when it's already
+// sitting right there in what they pasted — pull it out automatically (first line that
+// matches wins; a 2-digit year is read as 20xx).
+const WA_PASTE_PREFIX_RE=[
+  /^\[(\d{1,2}):(\d{2})(?::\d{2})?,\s*(\d{1,2})\.(\d{1,2})\.(\d{2,4})\]\s*([^:]+?):/m,   // iOS: [HH:MM, DD.MM.YYYY] Sender:
+  /^(\d{1,2})\.(\d{1,2})\.(\d{2,4}),\s*(\d{1,2}):(\d{2})\s*[-–]\s*([^:]+?):/m,            // Android: DD.MM.YYYY, HH:MM - Sender:
+];
+function waDetectFromPaste(raw){
+  if(!raw) return null;
+  let m=raw.match(WA_PASTE_PREFIX_RE[0]);
+  if(m){
+    const [,, , dd,mo,yr,sender]=m;
+    const year=yr.length===2?'20'+yr:yr;
+    return {sender:sender.trim(), date:`${year}-${String(mo).padStart(2,'0')}-${String(dd).padStart(2,'0')}`};
+  }
+  m=raw.match(WA_PASTE_PREFIX_RE[1]);
+  if(m){
+    const [,dd,mo,yr,, ,sender]=m;
+    const year=yr.length===2?'20'+yr:yr;
+    return {sender:sender.trim(), date:`${year}-${String(mo).padStart(2,'0')}-${String(dd).padStart(2,'0')}`};
+  }
+  return null;
+}
+function waAutofillFromPasteText(){
+  const raw=document.getElementById('wa-paste-text').value;
+  const detected=waDetectFromPaste(raw);
+  if(!detected) return;
+  const senderEl=document.getElementById('wa-source-sender');
+  const dateEl=document.getElementById('wa-source-date');
+  if(senderEl) senderEl.value=detected.sender;
+  if(dateEl) dateEl.value=detected.date;
+}
+
 async function waParseMessage(){
+  waAutofillFromPasteText(); // in case the field lost focus without firing its own listener
   const raw=document.getElementById('wa-paste-text').value.trim();
   const statusEl=document.getElementById('wa-parse-status');
   const chat=document.getElementById('wa-source-chat').value.trim();
@@ -1386,6 +1424,7 @@ async function waParseMessage(){
   const systemPrompt=`You extract structured vessel-offer data from one WhatsApp message for a dry-bulk freight broker. The message may describe ONE vessel/offer or SEVERAL bundled together (e.g. a broker listing 3 positions as one list, or a numbered/bulleted set) — return a JSON ARRAY with one object per distinct vessel/offer found, never merge several vessels into one object and never split one vessel's fields across several objects. A message describing just one vessel still returns an array of length 1. Return ONLY the JSON array (no markdown fences, no explanation), each object having exactly these keys: ${fieldList.join(', ')}.
 
 Rules:
+- The pasted text may be several consecutive WhatsApp bubbles concatenated together, each still carrying its own "[time, date] Sender:" or "date, time - Sender:" prefix. Consecutive bubbles from the SAME sender at the same/nearby timestamp are very often one continuous thought split across bubbles (e.g. full specs in one bubble, then just "Spot inside" or "open Danube 05/10" as a one-line follow-up) — treat those as belonging to the SAME vessel/offer, not a separate entry. Only start a new array entry when a new vessel name, or clearly distinct offer, is actually introduced.
 - If the message (or one bundled entry within it) names no vessel and is itself a request for cargo/tonnage (a charterer or owner asking for a cargo to fit some dwt), leave "name" null for that entry — do NOT invent a name.
 - If the message is not a vessel offer or cargo-seeking request at all (small talk, a question, an acknowledgement, a forwarded document with no vessel details, a deleted-message placeholder, etc.), return an empty array [].
 - "region" must be exactly one of: ${WA_REGIONS.map(r=>'"'+r+'"').join(', ')}, or null if you can't tell from the text.
@@ -1570,13 +1609,13 @@ async function renderWaMain(){
   const f=waFilters;
   wrap.innerHTML=`
     <div class="card">
-      <div class="hint-box" style="margin-bottom:10px">Paste one WhatsApp message (a vessel offer, position, or cargo-seeking request) — it gets parsed into fields you can check before saving. The same chat you use to search for candidates can also read and fill this list directly via MCP.</div>
+      <div class="hint-box" style="margin-bottom:10px">Paste one WhatsApp message (a vessel offer, position, or cargo-seeking request) — it gets parsed into fields you can check before saving. The same chat you use to search for candidates can also read and fill this list directly via MCP. If your paste still has WhatsApp's own "[time, date] Sender:" prefix on it, sender and date below fill in automatically.</div>
       <div class="field-grid">
         <div class="field"><label>Source chat</label><input type="text" id="wa-source-chat" placeholder="e.g. SHIPS OFFERS & UPDATES"></div>
-        <div class="field"><label>Sender</label><input type="text" id="wa-source-sender" placeholder="optional"></div>
+        <div class="field"><label>Sender</label><input type="text" id="wa-source-sender" placeholder="auto-filled from the paste, or type it"></div>
         <div class="field"><label>Message date</label><input type="date" id="wa-source-date" value="${new Date().toISOString().slice(0,10)}"></div>
       </div>
-      <textarea class="ai-textarea" id="wa-paste-text" style="margin-top:10px" placeholder="Paste the WhatsApp message text here..."></textarea>
+      <textarea class="ai-textarea" id="wa-paste-text" style="margin-top:10px" placeholder="Paste the WhatsApp message text here (with or without its [time, date] Sender: prefix)..."></textarea>
       <button class="btn-primary" id="wa-parse-btn" style="margin-top:8px">${icon('refresh')} Parse message</button>
       <div class="ai-status" id="wa-parse-status"></div>
       <div id="wa-draft-wrap"></div>
@@ -1599,6 +1638,7 @@ async function renderWaMain(){
     </div>`;
   document.getElementById('wa-parse-btn').onclick=waParseMessage;
   document.getElementById('wa-filter-btn').onclick=waApplyFiltersFromInputs;
+  document.getElementById('wa-paste-text').addEventListener('input', waAutofillFromPasteText);
   renderWaDraftForm();
   await loadWaVessels();
 }
