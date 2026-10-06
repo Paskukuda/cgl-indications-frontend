@@ -609,7 +609,7 @@ ${orderText}`;
   btn.disabled=false;
 }
 
-function escapeHtml(s){return (s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function escapeHtml(s){return String(s===null||s===undefined?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 
 /* ══════════════════════════════════════════════════════════
    SERVER API — CGL Indications backend (FastAPI + SQLite)
