@@ -164,6 +164,12 @@ body,*{scrollbar-width:thin;scrollbar-color:var(--border) transparent}
 .ai-status.err{color:var(--err)}
 .ai-key-status{font-size:10px;color:var(--text-muted);margin-top:6px}
 .ai-summary-box{margin-top:10px;padding:10px 12px;border-radius:8px;background:var(--input-bg);border:1px solid var(--border-soft);font-size:12px;line-height:1.5}
+.wa-status-pill{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.02em;white-space:nowrap}
+.wa-status-open{background:#1f6f43;color:#fff}
+.wa-status-on_subs{background:#8a6d1f;color:#fff}
+.wa-status-fixed{background:#2d5fa8;color:#fff}
+.wa-status-withdrawn,.wa-status-expired{background:var(--border);color:var(--text-muted)}
+.wa-quick-btn{font-family:inherit;font-size:10.5px;padding:3px 7px;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--text);cursor:pointer;margin-right:4px;white-space:nowrap}
 .note-item{font-size:11.5px;padding:7px 0;border-top:1px solid var(--border-soft);line-height:1.4}
 .note-item:first-child{border-top:none}
 .note-item .ts{display:block;color:var(--text-muted);font-size:9.5px;margin-top:2px}
@@ -327,6 +333,7 @@ details.section summary .sec-count.all-done{color:var(--success);background:var(
       <button class="main-tab-btn" id="tab-checklist-btn" onclick="setMainTab('checklist')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><rect x="3.5" y="3.5" width="17" height="17" rx="3"/><path d="M7.5 12.3l3 3 6-6.5"/></svg> Voyage Checklist</button>
       <button class="main-tab-btn" id="tab-ais-btn" onclick="setMainTab('ais')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M4 15l1.5 4.5a2 2 0 0 0 1.9 1.5h9.2a2 2 0 0 0 1.9-1.5L20 15"/><path d="M6 15V8h12v7"/><line x1="12" y1="3" x2="12" y2="8"/><line x1="9" y1="5" x2="15" y2="5"/></svg> AIS / Vessels</button>
       <button class="main-tab-btn" id="tab-lion-btn" onclick="setMainTab('lion')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M12 3l2.6 5.3 5.9.8-4.3 4.1 1 5.8L12 16l-5.2 2.8 1-5.8-4.3-4.1 5.9-.8z"/></svg> Lion SP</button>
+      <button class="main-tab-btn" id="tab-wa-btn" onclick="setMainTab('wa')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 11.5a8.4 8.4 0 0 1-1.2 4.4L21 20l-4.3-1.1a8.4 8.4 0 1 1 4.3-7.4z"/></svg> CGL WA PS</button>
     </div>
     <span class="autosave-msg" id="autosave-msg">✓ saved</span>
     <div class="tab-spacer"></div>
@@ -1302,6 +1309,277 @@ async function renderLionMain(){
   await loadLionPositions();
 }
 
+/* ══════════════════════════════════════════════════════════
+   CGL WA PS — vessel offers/positions that only ever surface in WhatsApp
+   chats (never in email or AIS). Paste one message, an AI parse step
+   extracts the fields into an editable draft, review/fix it, then save —
+   it upserts on the server by IMO (or name+dwt+built if no IMO), so the
+   same vessel re-listed over several days collapses into one row instead
+   of duplicating. Rows are never deleted here, only their status changes
+   (open/on_subs/fixed/withdrawn, or "expired" automatically once ~20 days
+   past their open window) — the same chat that searches for candidates
+   elsewhere can also read this table via MCP (add/list/get/update_wa_vessel).
+   ══════════════════════════════════════════════════════════ */
+const WA_REGIONS=["Danube inside","Sulina","Black Sea","Marmara","Aegean","E.Med","C.Med","Other"];
+const WA_STATUSES=["open","on_subs","fixed","withdrawn","expired"];
+const WA_FIELD_LABELS=[
+  ['name','Vessel'],['imo','IMO'],['mmsi','MMSI'],['build_year','Built'],['flag','Flag'],
+  ['dwt','DWT'],['dwcc','DWCC'],['intake_mt','Intake, mt'],['grain_cbft','Grain, cbft'],['bale_cbft','Bale, cbft'],
+  ['draft_m','Draft, m'],['holds','Holds'],['gear','Gear'],['position','Position (as written)'],['region','Region'],
+  ['open_from','Open from'],['open_to','Open to'],['restrictions','Restrictions'],['freight_idea','Freight idea'],
+  ['contact','Contact'],['broker_company','Broker/company'],['status','Status'],
+  ['source_chat','Source chat'],['source_sender','Source sender'],['source_date','Source date'],['note','Note'],
+];
+let waVessels=[];
+let waDraft=null; // the parsed/editable draft row, or null when nothing is being reviewed
+let waFilters={status:'',region:'',dwtMin:'',dwtMax:'',maxDraft:'',openBefore:'',insideDanube:false};
+let waSortKey='updated_at';
+let waSortDir='desc';
+
+function waQueryString(){
+  const f=waFilters, p=new URLSearchParams();
+  if(f.status) p.set('status',f.status);
+  if(f.region && !f.insideDanube) p.set('region',f.region);
+  if(f.dwtMin) p.set('dwt_min',f.dwtMin);
+  if(f.dwtMax) p.set('dwt_max',f.dwtMax);
+  if(f.maxDraft) p.set('max_draft',f.maxDraft);
+  if(f.openBefore) p.set('open_before',f.openBefore);
+  if(f.insideDanube) p.set('inside_danube','true');
+  return p.toString();
+}
+async function loadWaVessels(){
+  const statusEl=document.getElementById('wa-status');
+  try{
+    const qs=waQueryString();
+    const res=await apiRequest('GET','/api/wa-vessels'+(qs?'?'+qs:''));
+    waVessels=res.vessels||[];
+    if(statusEl) statusEl.textContent=waVessels.length+' entr'+(waVessels.length===1?'y':'ies')+' · auto-expires ~20 days after the open window closes, unless the status was changed by hand';
+    renderWaTable();
+  }catch(e){
+    if(e.message!=='Session expired' && statusEl) statusEl.textContent='Could not load: '+e.message;
+  }
+}
+function waRegionOptions(selected){
+  return '<option value="">—</option>'+WA_REGIONS.map(r=>`<option value="${r}"${r===selected?' selected':''}>${r}</option>`).join('');
+}
+function waStatusOptions(selected){
+  return WA_STATUSES.map(s=>`<option value="${s}"${s===selected?' selected':''}>${s}</option>`).join('');
+}
+
+async function waParseMessage(){
+  const raw=document.getElementById('wa-paste-text').value.trim();
+  const statusEl=document.getElementById('wa-parse-status');
+  const chat=document.getElementById('wa-source-chat').value.trim();
+  const sender=document.getElementById('wa-source-sender').value.trim();
+  const sdate=document.getElementById('wa-source-date').value.trim();
+  if(!raw){ statusEl.textContent='Paste the WhatsApp message first.'; statusEl.className='ai-status err'; return; }
+  const btn=document.getElementById('wa-parse-btn');
+  btn.disabled=true;
+  statusEl.className='ai-status';
+  statusEl.innerHTML='<span class="spin"></span>Parsing…';
+  const fieldList=WA_FIELD_LABELS.map(([k])=>k).filter(k=>!['status','source_chat','source_sender','source_date','note'].includes(k));
+  const systemPrompt=`You extract structured vessel-offer data from one WhatsApp message for a dry-bulk freight broker. Return ONLY a single JSON object (no markdown fences, no explanation) with exactly these keys: ${fieldList.join(', ')}.
+
+Rules:
+- If the message names no vessel and is itself a request for cargo/tonnage (a charterer or owner asking for a cargo to fit some dwt), leave "name" null — do NOT invent a name.
+- "region" must be exactly one of: ${WA_REGIONS.map(r=>'"'+r+'"').join(', ')}, or null if you can't tell from the text.
+- "open_from"/"open_to" must be ISO dates (YYYY-MM-DD) if a year isn't given, assume the nearest future occurrence of that month/day from today (${todayStr()}); a single date with no range -> same value for both.
+- "build_year" is a 4-digit year (e.g. from "blt 1996" or "built 2021").
+- Numeric fields (dwt, dwcc, intake_mt, grain_cbft, bale_cbft, draft_m, mmsi) must be plain numbers, no units/commas, or null.
+- "restrictions" should capture things like "no UKR/RUS", "Sulina only", "cannot call Reni", etc. verbatim-ish.
+- Leave ANYTHING not stated in the message as null — never guess or fill in a plausible-sounding value.
+
+MESSAGE:
+${raw}`;
+  try{
+    const headers={'Content-Type':'application/json'};
+    const key=safeStorage.getItem('cgl_anthropic_key');
+    if(key){ headers['x-api-key']=key; headers['anthropic-dangerous-direct-browser-access']='true'; headers['anthropic-version']='2023-06-01'; }
+    const body={ model:'claude-sonnet-4-6', max_tokens:800, system:systemPrompt, messages:[{role:'user', content:'Extract the fields.'}] };
+    const resp=await fetch('https://api.anthropic.com/v1/messages',{ method:'POST', headers, body:JSON.stringify(body) });
+    if(!resp.ok){
+      let extra='';
+      if(resp.status===401 || resp.status===403) extra=' — if this page is hosted outside Claude.ai, add your API key via the settings button.';
+      throw new Error('HTTP '+resp.status+extra);
+    }
+    const data=await resp.json();
+    const text=(data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('\n').trim();
+    const jsonMatch=text.match(/\{[\s\S]*\}/);
+    if(!jsonMatch) throw new Error('No JSON in the response');
+    const parsed=JSON.parse(jsonMatch[0]);
+    waDraft=Object.assign(
+      Object.fromEntries(WA_FIELD_LABELS.map(([k])=>[k,null])),
+      parsed,
+      {status:'open', source_chat:chat||null, source_sender:sender||null, source_date:sdate||null, raw_text:raw}
+    );
+    statusEl.textContent='Parsed — review the fields below, then save.';
+    statusEl.className='ai-status';
+    renderWaDraftForm();
+  }catch(err){
+    statusEl.textContent='Parse failed: '+err.message+' — you can still fill the fields in by hand below.';
+    statusEl.className='ai-status err';
+    waDraft=Object.assign(Object.fromEntries(WA_FIELD_LABELS.map(([k])=>[k,null])),
+      {status:'open', source_chat:chat||null, source_sender:sender||null, source_date:sdate||null, raw_text:raw});
+    renderWaDraftForm();
+  }
+  btn.disabled=false;
+}
+
+function renderWaDraftForm(){
+  const wrap=document.getElementById('wa-draft-wrap');
+  if(!wrap) return;
+  if(!waDraft){ wrap.innerHTML=''; return; }
+  const d=waDraft;
+  const inputField=(k,label)=>{
+    if(k==='region') return `<div class="field"><label>${label}</label><select id="wa-d-${k}">${waRegionOptions(d.region)}</select></div>`;
+    if(k==='status') return `<div class="field"><label>${label}</label><select id="wa-d-${k}">${waStatusOptions(d.status||'open')}</select></div>`;
+    if(k==='open_from'||k==='open_to'||k==='source_date') return `<div class="field"><label>${label}</label><input type="date" id="wa-d-${k}" value="${escapeHtml(d[k]||'')}"></div>`;
+    const numeric=['build_year','dwt','dwcc','intake_mt','grain_cbft','bale_cbft','draft_m','mmsi'].includes(k);
+    return `<div class="field"><label>${label}</label><input type="${numeric?'number':'text'}" id="wa-d-${k}" value="${escapeHtml(d[k]===null||d[k]===undefined?'':d[k])}"></div>`;
+  };
+  wrap.innerHTML=`
+    <div class="card" style="margin-top:12px">
+      <div class="section-title" style="margin-bottom:8px">Review before saving</div>
+      <div class="field-grid">${WA_FIELD_LABELS.map(([k,label])=>inputField(k,label)).join('')}</div>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="btn-primary" id="wa-save-btn">${icon('checksquare',15)} Save</button>
+        <button class="export-btn" id="wa-discard-btn">Discard</button>
+      </div>
+      <div class="ai-status" id="wa-save-status"></div>
+    </div>`;
+  document.getElementById('wa-discard-btn').onclick=()=>{ waDraft=null; renderWaDraftForm(); document.getElementById('wa-paste-text').value=''; };
+  document.getElementById('wa-save-btn').onclick=waSaveDraft;
+}
+
+async function waSaveDraft(){
+  const statusEl=document.getElementById('wa-save-status');
+  const fields={};
+  WA_FIELD_LABELS.forEach(([k])=>{
+    const el=document.getElementById('wa-d-'+k);
+    if(!el) return;
+    let v=el.value.trim();
+    const numeric=['build_year','dwt','dwcc','intake_mt','grain_cbft','bale_cbft','draft_m','mmsi'].includes(k);
+    fields[k]= v==='' ? null : (numeric ? Number(v) : v);
+  });
+  fields.raw_text=waDraft.raw_text||null;
+  statusEl.textContent='Saving…'; statusEl.className='ai-status';
+  try{
+    await apiRequest('POST','/api/wa-vessels', fields);
+    statusEl.textContent='✓ saved';
+    document.getElementById('wa-paste-text').value='';
+    await loadWaVessels();
+    // leave the draft (with its "saved" status) visible briefly before clearing it,
+    // so the confirmation message actually gets seen rather than vanishing instantly
+    setTimeout(()=>{ waDraft=null; renderWaDraftForm(); }, 900);
+  }catch(e){
+    if(e.message!=='Session expired'){ statusEl.textContent='Save failed: '+e.message; statusEl.className='ai-status err'; }
+  }
+}
+
+function waSortedRows(){
+  const dir=waSortDir==='asc'?1:-1;
+  return [...waVessels].sort((a,b)=>{
+    let av=a[waSortKey], bv=b[waSortKey];
+    if(waSortKey==='dwt'||waSortKey==='build_year'||waSortKey==='draft_m'){ av=av||0; bv=bv||0; return (av-bv)*dir; }
+    av=av||''; bv=bv||'';
+    return String(av).localeCompare(String(bv))*dir;
+  });
+}
+function waOpenRangeText(v){
+  if(v.open_from && v.open_to) return v.open_from===v.open_to ? v.open_from : (v.open_from+' – '+v.open_to);
+  return v.open_from || v.open_to || '—';
+}
+const WA_STATUS_NEXT={open:'on_subs', on_subs:'fixed'}; // one-click progression shown on the quick-status button
+function renderWaTable(){
+  const wrap=document.getElementById('wa-table-wrap');
+  if(!wrap) return;
+  const rows=waSortedRows();
+  if(!rows.length){ wrap.innerHTML='<div class="idea-empty">No WhatsApp vessel entries logged yet — paste a message above to start.</div>'; return; }
+  const cols=[['name','Vessel'],['imo','IMO'],['build_year','Built'],['dwt','DWT'],['draft_m','Draft'],['position','Position'],['region','Region'],['open_from','Open'],['restrictions','Restrictions'],['status','Status']];
+  const arrow=(k)=> k===waSortKey ? (waSortDir==='asc'?' ▲':' ▼') : '';
+  const head=cols.map(([k,label])=>`<th data-sort="${k}" style="cursor:pointer;user-select:none">${label}${arrow(k)}</th>`).join('')+'<th></th>';
+  const body=rows.map(v=>{
+    const next=WA_STATUS_NEXT[v.status];
+    return `<tr data-id="${v.id}">
+      <td data-label="Vessel"><b>${escapeHtml(v.name||'(no name)')}</b></td>
+      <td data-label="IMO">${escapeHtml(v.imo||'—')}</td>
+      <td data-label="Built">${v.build_year||'—'}</td>
+      <td data-label="DWT">${v.dwt?Math.round(v.dwt).toLocaleString():'—'}</td>
+      <td data-label="Draft">${v.draft_m||'—'}</td>
+      <td data-label="Position">${escapeHtml(v.position||'—')}</td>
+      <td data-label="Region">${escapeHtml(v.region||'—')}</td>
+      <td data-label="Open">${escapeHtml(waOpenRangeText(v))}</td>
+      <td class="tile-sub" data-label="Restrictions" style="display:table-cell;color:${v.restrictions?'var(--err)':'inherit'}">${escapeHtml(v.restrictions||'')}</td>
+      <td data-label="Status"><span class="wa-status-pill wa-status-${escapeHtml(v.status)}">${escapeHtml(v.status)}</span></td>
+      <td style="white-space:nowrap">
+        ${next?`<button class="wa-quick-btn" data-id="${v.id}" data-status="${next}" title="Mark ${next}">→ ${next}</button>`:''}
+        ${v.status!=='withdrawn'?`<button class="wa-quick-btn" data-id="${v.id}" data-status="withdrawn" title="Withdraw">✕</button>`:''}
+      </td>
+    </tr>`;
+  }).join('');
+  wrap.innerHTML=`<div style="overflow-x:auto"><table class="ais-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
+  wrap.querySelectorAll('th[data-sort]').forEach(th=>th.onclick=()=>{
+    const k=th.dataset.sort;
+    if(k===waSortKey) waSortDir=waSortDir==='asc'?'desc':'asc'; else { waSortKey=k; waSortDir='asc'; }
+    renderWaTable();
+  });
+  wrap.querySelectorAll('.wa-quick-btn').forEach(btn=>btn.onclick=async()=>{
+    try{ await apiRequest('PUT','/api/wa-vessels/'+btn.dataset.id, {status:btn.dataset.status}); await loadWaVessels(); }
+    catch(e){ if(e.message!=='Session expired') alert('Could not update: '+e.message); }
+  });
+}
+
+function waApplyFiltersFromInputs(){
+  waFilters={
+    status:document.getElementById('wa-f-status').value,
+    region:document.getElementById('wa-f-region').value,
+    dwtMin:document.getElementById('wa-f-dwtmin').value,
+    dwtMax:document.getElementById('wa-f-dwtmax').value,
+    maxDraft:document.getElementById('wa-f-maxdraft').value,
+    openBefore:document.getElementById('wa-f-openbefore').value,
+    insideDanube:document.getElementById('wa-f-danube').checked,
+  };
+  loadWaVessels();
+}
+
+async function renderWaMain(){
+  const wrap=document.getElementById('main-wrap');
+  const f=waFilters;
+  wrap.innerHTML=`
+    <div class="card">
+      <div class="hint-box" style="margin-bottom:10px">Paste one WhatsApp message (a vessel offer, position, or cargo-seeking request) — it gets parsed into fields you can check before saving. The same chat you use to search for candidates can also read and fill this list directly via MCP.</div>
+      <div class="field-grid">
+        <div class="field"><label>Source chat</label><input type="text" id="wa-source-chat" placeholder="e.g. SHIPS OFFERS & UPDATES"></div>
+        <div class="field"><label>Sender</label><input type="text" id="wa-source-sender" placeholder="optional"></div>
+        <div class="field"><label>Message date</label><input type="date" id="wa-source-date" value="${new Date().toISOString().slice(0,10)}"></div>
+      </div>
+      <textarea class="ai-textarea" id="wa-paste-text" style="margin-top:10px" placeholder="Paste the WhatsApp message text here..."></textarea>
+      <button class="btn-primary" id="wa-parse-btn" style="margin-top:8px">${icon('refresh')} Parse message</button>
+      <div class="ai-status" id="wa-parse-status"></div>
+      <div id="wa-draft-wrap"></div>
+    </div>
+    <div class="card" style="margin-top:14px">
+      <div class="ais-filters">
+        <div class="field"><label>Status</label><select id="wa-f-status"><option value="">All</option>${waStatusOptions(f.status)}</select></div>
+        <div class="field"><label>Region</label><select id="wa-f-region"><option value="">All</option>${waRegionOptions(f.region)}</select></div>
+        <div class="field"><label>DWT from</label><input type="number" id="wa-f-dwtmin" value="${escapeHtml(f.dwtMin)}"></div>
+        <div class="field"><label>DWT to</label><input type="number" id="wa-f-dwtmax" value="${escapeHtml(f.dwtMax)}"></div>
+        <div class="field"><label>Max draft, m</label><input type="number" step="0.01" id="wa-f-maxdraft" value="${escapeHtml(f.maxDraft)}"></div>
+        <div class="field"><label>Open before</label><input type="date" id="wa-f-openbefore" value="${escapeHtml(f.openBefore)}"></div>
+        <label class="ai-toggle" style="align-self:center"><input type="checkbox" id="wa-f-danube" ${f.insideDanube?'checked':''}> inside Danube only</label>
+        <button class="export-btn" id="wa-filter-btn" style="align-self:flex-end">Apply</button>
+      </div>
+    </div>
+    <div class="hint-box" id="wa-status">Loading…</div>
+    <div class="tile-board-card">
+      <div id="wa-table-wrap"><div class="idea-empty">Loading…</div></div>
+    </div>`;
+  document.getElementById('wa-parse-btn').onclick=waParseMessage;
+  document.getElementById('wa-filter-btn').onclick=waApplyFiltersFromInputs;
+  renderWaDraftForm();
+  await loadWaVessels();
+}
+
 async function renderAisMain(){
   const wrap=document.getElementById('main-wrap');
   const f=aisFilters;
@@ -1491,6 +1769,7 @@ function render(){
   document.getElementById('tab-checklist-btn').classList.toggle('active', state.activeMainTab==='checklist');
   document.getElementById('tab-ais-btn').classList.toggle('active', state.activeMainTab==='ais');
   document.getElementById('tab-lion-btn').classList.toggle('active', state.activeMainTab==='lion');
+  document.getElementById('tab-wa-btn').classList.toggle('active', state.activeMainTab==='wa');
   document.getElementById('cargo-bar').style.display = state.activeMainTab==='board' ? '' : 'none';
   document.getElementById('voyage-bar').style.display = state.activeMainTab==='checklist' ? '' : 'none';
   document.getElementById('cargo-edit-topbtn').style.display = (state.activeMainTab==='board'||state.activeMainTab==='lion') ? '' : 'none';
@@ -1502,6 +1781,7 @@ function render(){
   if(state.activeMainTab==='board'){ renderCargoPills(); renderBoardMain(); }
   else if(state.activeMainTab==='checklist'){ renderVoyagePills(); renderChecklistMain(); }
   else if(state.activeMainTab==='lion'){ renderLionMain(); }
+  else if(state.activeMainTab==='wa'){ renderWaMain(); }
   else { renderAisMain(); }
 }
 function toggleCargoEditMode(){
