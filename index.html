@@ -1441,6 +1441,7 @@ Rules:
 - "build_year" is a 4-digit year (e.g. from "blt 1996" or "built 2021").
 - Numeric fields (dwt, dwcc, intake_mt, grain_cbft, bale_cbft, draft_m, mmsi) must be plain numbers, no units/commas, or null. "dwcc" and "cc" in the text both mean dwcc.
 - "restrictions" = hard limits that can rule a vessel out: "no UKR/RUS", "Sulina only", "cannot call Reni", "no Paris MOU", "non-reversible"... verbatim-ish.
+- "contact" and "broker_company" only when a person/company is actually named in the message body (a signature, a forwarded owner/broker). NEVER fill them from the "[time, date] Sender:" prefix — that is just whoever pasted/forwarded the message.
 - "freight_idea" = ANY rate / freight talk in the message, kept verbatim-ish with route and unit (e.g. "ex Reni/Izmail to Marmara USD 95 pmt; can fix 91-92 pmt via Bystroe").
 - "note" = EVERYTHING else useful from the message that has no dedicated field — free days, demurrage/detention terms, load/discharge rates, "ready to pass via Bystroe", ETA/ETS details, cargo type and stowage factor, who the owner/broker is, vessel class/P&I, any remark. Write it as a compact one-line summary in the message's own words; lose nothing that a charterer would care about. Never leave "note" null when the message contains such details.
 - Leave ANYTHING not stated in the message as null — never guess or fill in a plausible-sounding value.
@@ -1575,13 +1576,13 @@ function waOpenRangeText(v){
 const WA_STATUS_NEXT={open:'on_subs', on_subs:'fixed'}; // one-click progression shown on the quick-status button
 // long free text: clamp to 2 lines in the table but keep the whole thing in the native tooltip
 function waClip(txt,color){
-  if(!txt) return '<span style="color:var(--text-muted)">—</span>';
+  if(!txt || !String(txt).trim()) return '<span style="color:var(--text-muted)">—</span>';
   return `<div class="wa-clip" title="${escapeHtml(txt)}"${color?` style="color:${color}"`:''}>${escapeHtml(txt)}</div>`;
 }
 function waDetailHtml(v){
   const skip=['id','created_at','updated_at','raw_text'];
   const labels=Object.fromEntries(WA_FIELD_LABELS);
-  const items=Object.keys(v).filter(k=>!skip.includes(k) && v[k]!==null && v[k]!=='').map(k=>
+  const items=Object.keys(v).filter(k=>!skip.includes(k) && v[k]!==null && String(v[k]).trim()!=='').map(k=>
     `<div><b>${escapeHtml(labels[k]||k)}</b>${escapeHtml(v[k])}</div>`).join('');
   const raw=v.raw_text?`<div class="wa-raw">${escapeHtml(v.raw_text)}</div>`:'';
   return `<div class="wa-detail-grid">${items}</div>${raw}`;
