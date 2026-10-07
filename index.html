@@ -1730,15 +1730,15 @@ async function renderAisMain(){
   wrap.innerHTML=`
     <div class="card" style="margin-bottom:12px">
       <div class="ais-filters">
-        <div class="field" style="flex:1.4 1 220px"><label>Search name or IMO</label><input type="text" id="ais-f-search" placeholder="e.g. DENSA EAGLE or 9432488" value="${escapeHtml(aisSearchText)}"></div>
+        <div class="field" style="flex:1.4 1 220px"><label>Search name or IMO</label><input type="text" id="ais-f-search" placeholder="DENSA EAGLE or 9432488" value="${escapeHtml(aisSearchText)}"></div>
         <div class="field"><label>Near port</label><select id="ais-f-port">${aisPortOptionsHtml()}</select></div>
         <div class="field"><label>Radius, nm</label><input type="number" id="ais-f-radius" min="1" value="${escapeHtml(f.radius)}"></div>
-        <div class="field"><label>DWT from</label><input type="number" id="ais-f-dwtmin" placeholder="e.g. 20000" value="${escapeHtml(f.dwtMin)}"></div>
-        <div class="field"><label>DWT to</label><input type="number" id="ais-f-dwtmax" placeholder="e.g. 40000" value="${escapeHtml(f.dwtMax)}"></div>
+        <div class="field"><label>DWT from</label><input type="number" id="ais-f-dwtmin" placeholder="20000" value="${escapeHtml(f.dwtMin)}"></div>
+        <div class="field"><label>DWT to</label><input type="number" id="ais-f-dwtmax" placeholder="40000" value="${escapeHtml(f.dwtMax)}"></div>
         <button class="logout-btn" id="ais-hull-toggle-btn" title="${aisHullFieldsOpen?'Hide hull length filter':'Filter by hull length (for vessels with no DWT yet)'}" style="align-self:flex-end${aisHullFieldsOpen?';background:var(--btn-dark-bg);color:var(--btn-dark-fg);border-color:transparent':''}">${icon('settings',15)}</button>
         ${aisHullFieldsOpen?`
-        <div class="field"><label>Hull length from, m</label><input type="number" id="ais-f-loamin" placeholder="e.g. 160" value="${escapeHtml(f.loaMin)}"></div>
-        <div class="field"><label>Hull length to, m</label><input type="number" id="ais-f-loamax" placeholder="e.g. 190" value="${escapeHtml(f.loaMax)}"></div>`:''}
+        <div class="field"><label>Hull length from, m</label><input type="number" id="ais-f-loamin" placeholder="160" value="${escapeHtml(f.loaMin)}"></div>
+        <div class="field"><label>Hull length to, m</label><input type="number" id="ais-f-loamax" placeholder="190" value="${escapeHtml(f.loaMax)}"></div>`:''}
       </div>
       ${aisHullFieldsOpen?'<div style="font-size:11px;color:var(--text-muted);margin-top:8px">Hull length is only used for ships whose DWT is not known yet — with a DWT range set, those still show up if their length fits.</div>':''}
     </div>
@@ -2140,13 +2140,13 @@ function renderBoardMain(){
         </div>
         <details class="card ai-panel" id="panel-note" style="margin-top:14px" ${panelState.note?'open':''}>
           <summary><span class="chev">▶</span><span class="section-title">Manual note</span></summary>
-          <textarea class="ai-textarea" id="note-input" placeholder="E.g.: yesterday MHP fixed MV MARIA S at $100 ex Reni to Lebanon — FYI"></textarea>
+          <textarea class="ai-textarea" id="note-input" placeholder="yesterday MHP fixed MV MARIA S at $100 ex Reni to Lebanon — FYI"></textarea>
           <div style="margin-top:8px"><button class="btn-ghost" id="save-note-btn" style="width:100%">Save note</button></div>
           <div id="notes-list" style="margin-top:10px;max-height:160px;overflow-y:auto"></div>
         </details>
         <details class="card ai-panel" id="panel-kb" style="margin-top:14px" ${panelState.kb?'open':''}>
           <summary><span class="chev">▶</span><span class="section-title">Knowledge base (reports &amp; circulars)</span></summary>
-          <div class="field" style="margin-bottom:6px"><input type="text" id="doc-title-input" placeholder="Title, e.g. STRIBROK week 36"></div>
+          <div class="field" style="margin-bottom:6px"><input type="text" id="doc-title-input" placeholder="Title, STRIBROK week 36"></div>
           <div class="field faq-select">
             <select id="doc-category-input">
               <option value="general">General Information</option>
@@ -2165,7 +2165,7 @@ function renderBoardMain(){
             <span class="chev">▶</span><span class="section-title">AI request — recalculate indication</span>
             <button class="gear-btn" id="ai-settings-btn" title="API key settings" style="margin-left:auto">${icon('settings',14)}</button>
           </summary>
-          <textarea class="ai-textarea" id="ai-input" placeholder="E.g.: recalculate the Danube-Marmara rate using this week's emails"></textarea>
+          <textarea class="ai-textarea" id="ai-input" placeholder="recalculate the Danube-Marmara rate using this week's emails"></textarea>
           <div class="ai-toggle-row">
             <label class="ai-toggle"><input type="checkbox" id="ai-use-mail" checked> mail (Gmail)</label>
             <label class="ai-toggle"><input type="checkbox" id="ai-use-web" checked> web search</label>
@@ -2180,10 +2180,10 @@ function renderBoardMain(){
         <details class="card ai-panel" id="panel-lumpsum" style="margin-top:14px" ${panelState.lumpsum?'open':''}>
           <summary><span class="chev">▶</span><span class="section-title">Lumpsum calculator</span><span class="info-tip" tabindex="0" onclick="event.preventDefault();event.stopPropagation()">i<span class="info-pop">Lumpsum method: the freight sum per voyage stays fixed — a different stowage factor (SF) just changes how much cargo fits the same hold space. See the &quot;Lumpsum calculation&quot; tile in IND FAQ for the full explanation.</span></span></summary>
           <div class="field-grid">
-            <div class="field"><label>Base rate, $/mt</label><input type="number" id="lc-base-rate" step="0.01" placeholder="e.g. 100"></div>
-            <div class="field"><label>Base qty, t</label><input type="number" id="lc-base-qty" step="1" placeholder="e.g. 3150"></div>
-            <div class="field"><label>Base SF</label><input type="number" id="lc-base-sf" step="0.1" placeholder="e.g. 47"></div>
-            <div class="field"><label>Target SF</label><input type="number" id="lc-target-sf" step="0.1" placeholder="e.g. 58"></div>
+            <div class="field"><label>Base rate, $/mt</label><input type="number" id="lc-base-rate" step="0.01" placeholder="100"></div>
+            <div class="field"><label>Base qty, t</label><input type="number" id="lc-base-qty" step="1" placeholder="3150"></div>
+            <div class="field"><label>Base SF</label><input type="number" id="lc-base-sf" step="0.1" placeholder="47"></div>
+            <div class="field"><label>Target SF</label><input type="number" id="lc-target-sf" step="0.1" placeholder="58"></div>
           </div>
           <div class="field" style="margin-top:10px"><label>Target vessel capacity, t (optional)</label><input type="number" id="lc-target-cap" step="1" placeholder="leave blank to estimate from SF ratio"></div>
           <div id="lc-result" style="margin-top:12px"></div>
@@ -2191,10 +2191,10 @@ function renderBoardMain(){
         <details class="card ai-panel" id="panel-msggen" style="margin-top:14px" ${panelState.msggen?'open':''}>
           <summary><span class="chev">▶</span><span class="section-title">Message generator</span><span class="info-tip" tabindex="0" onclick="event.preventDefault();event.stopPropagation()">i<span class="info-pop">Paste a raw order and pick the situation — it drafts the WhatsApp/email message in your usual wording, ready to copy.</span></span></summary>
           <div class="field-grid">
-            <div class="field"><label>Vessel name</label><input type="text" id="msg-vessel" placeholder="e.g. ANKA BLUE"></div>
-            <div class="field"><label>Recipient name</label><input type="text" id="msg-recipient" placeholder="e.g. Sahin (optional)"></div>
+            <div class="field"><label>Vessel name</label><input type="text" id="msg-vessel" placeholder="ANKA BLUE"></div>
+            <div class="field"><label>Recipient name</label><input type="text" id="msg-recipient" placeholder="Sahin (optional)"></div>
           </div>
-          <div class="field" style="margin-top:10px"><label>Charterer (only for freight idea request)</label><input type="text" id="msg-charterer" placeholder="e.g. VIMEKSIM"></div>
+          <div class="field" style="margin-top:10px"><label>Charterer (only for freight idea request)</label><input type="text" id="msg-charterer" placeholder="VIMEKSIM"></div>
           <div class="field" style="margin-top:10px">
             <label>Message type</label>
             <select id="msg-template">
@@ -2690,7 +2690,7 @@ function openExportModal(){
         <input type="checkbox" class="exp-check" data-cid="${cid}" data-rid="${r.id}">
         <span class="er-label">${escapeHtml(r.label)} <span style="color:var(--text-muted);font-size:10px">(${r.direction})</span></span>
         <span class="er-rate">${escapeHtml(String(rateStr))} ${escapeHtml(r.unit||'$/mt')}</span>
-        <input type="text" class="exp-qty" data-cid="${cid}" data-rid="${r.id}" placeholder="qty, e.g. 3,000–5,000 mt">
+        <input type="text" class="exp-qty" data-cid="${cid}" data-rid="${r.id}" placeholder="qty, 3,000–5,000 mt">
       </div>`;
     });
   });
