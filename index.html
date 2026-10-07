@@ -31,7 +31,15 @@ body::-webkit-scrollbar-thumb,*::-webkit-scrollbar-thumb{background:var(--border
 body,*{scrollbar-width:thin;scrollbar-color:var(--border) transparent}
 
 .tab-bar{background:var(--tab-bg);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:110;padding-top:env(safe-area-inset-top,0px)}
-.tab-bar-inner{max-width:1180px;margin:0 auto;padding:0 20px;display:flex;align-items:center;gap:8px 14px;min-height:54px;flex-wrap:wrap;overflow:visible;padding-top:6px;padding-bottom:6px}
+.tab-bar-inner{max-width:1260px;margin:0 auto;padding:0 20px;display:flex;align-items:center;gap:8px 14px;min-height:54px;flex-wrap:nowrap;overflow:visible}
+.tab-bar-inner .tab-bar-brand,.tab-bar-inner .logout-btn,.tab-bar-inner .autosave-msg{flex-shrink:0}
+.tab-spacer{min-width:0}
+.main-tab-bar{flex-wrap:nowrap!important}
+@media (max-width:1300px) and (min-width:641px){.tab-bar-inner{flex-wrap:wrap;padding-top:8px;padding-bottom:8px}.main-tab-bar{order:10;flex-basis:100%}}
+.info-tip{position:relative;display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;margin-left:8px;border-radius:50%;border:1px solid var(--text-muted);color:var(--text-muted);font:700 10px/1 Georgia,serif;cursor:help;vertical-align:middle;flex-shrink:0}
+.info-tip:hover,.info-tip:focus{color:var(--text);border-color:var(--text)}
+.info-tip .info-pop{display:none;position:absolute;left:-150px;top:22px;width:280px;max-width:75vw;padding:9px 11px;border-radius:8px;background:var(--card);border:1px solid var(--border);box-shadow:0 6px 18px rgba(0,0,0,.25);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif;font-size:12px;font-weight:400;font-style:normal;line-height:1.45;text-transform:none;text-align:left;z-index:200;white-space:normal;letter-spacing:0}
+.info-tip:hover .info-pop,.info-tip:focus .info-pop{display:block}
 .tab-bar-brand{font-size:13px;font-weight:700;color:var(--text-muted);letter-spacing:.04em;display:flex;align-items:center;gap:8px;white-space:nowrap}
 .tab-bar-brand b{color:var(--text)}
 .autosave-msg{font-size:11px;color:var(--success);opacity:0;transition:opacity .3s;white-space:nowrap}
@@ -2193,8 +2201,7 @@ function renderBoardMain(){
           <div id="ai-history" style="margin-top:10px;max-height:200px;overflow-y:auto"></div>
         </details>
         <details class="card ai-panel" id="panel-lumpsum" style="margin-top:14px" ${panelState.lumpsum?'open':''}>
-          <summary><span class="chev">▶</span><span class="section-title">Lumpsum calculator</span></summary>
-          <div class="hint-box" style="margin-bottom:10px">Lumpsum method: the freight sum per voyage stays fixed — a different stowage factor (SF) just changes how much cargo fits the same hold space. See the "Lumpsum calculation" tile in IND FAQ for the full explanation.</div>
+          <summary><span class="chev">▶</span><span class="section-title">Lumpsum calculator</span><span class="info-tip" tabindex="0" onclick="event.preventDefault();event.stopPropagation()">i<span class="info-pop">Lumpsum method: the freight sum per voyage stays fixed — a different stowage factor (SF) just changes how much cargo fits the same hold space. See the &quot;Lumpsum calculation&quot; tile in IND FAQ for the full explanation.</span></span></summary>
           <div class="field-grid">
             <div class="field"><label>Base rate, $/mt</label><input type="number" id="lc-base-rate" step="0.01" placeholder="e.g. 100"></div>
             <div class="field"><label>Base qty, t</label><input type="number" id="lc-base-qty" step="1" placeholder="e.g. 3150"></div>
@@ -2206,8 +2213,7 @@ function renderBoardMain(){
           <div id="lc-result" style="margin-top:12px"></div>
         </details>
         <details class="card ai-panel" id="panel-msggen" style="margin-top:14px" ${panelState.msggen?'open':''}>
-          <summary><span class="chev">▶</span><span class="section-title">Message generator</span></summary>
-          <div class="hint-box" style="margin-bottom:10px">Paste a raw order and pick the situation — it drafts the WhatsApp/email message in your usual wording, ready to copy.</div>
+          <summary><span class="chev">▶</span><span class="section-title">Message generator</span><span class="info-tip" tabindex="0" onclick="event.preventDefault();event.stopPropagation()">i<span class="info-pop">Paste a raw order and pick the situation — it drafts the WhatsApp/email message in your usual wording, ready to copy.</span></span></summary>
           <div class="field-grid">
             <div class="field"><label>Vessel name</label><input type="text" id="msg-vessel" placeholder="e.g. ANKA BLUE"></div>
             <div class="field"><label>Recipient name</label><input type="text" id="msg-recipient" placeholder="e.g. Sahin (optional)"></div>
