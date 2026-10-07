@@ -169,6 +169,12 @@ body,*{scrollbar-width:thin;scrollbar-color:var(--border) transparent}
 .wa-status-on_subs{background:#8a6d1f;color:#fff}
 .wa-status-fixed{background:#2d5fa8;color:#fff}
 .wa-status-withdrawn,.wa-status-expired{background:var(--border);color:var(--text-muted)}
+.wa-clip{max-width:230px;min-width:70px;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;cursor:help;line-height:1.35}
+.wa-table tbody tr.wa-row{cursor:pointer}
+.wa-detail td{white-space:normal!important;background:var(--input-bg);padding:12px 14px!important}
+.wa-detail-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px 18px;font-size:12px}
+.wa-detail-grid b{display:block;font-size:10.5px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.03em;margin-bottom:1px}
+.wa-raw{margin-top:10px;padding:8px 10px;border:1px solid var(--border-soft);border-radius:8px;font-size:12px;white-space:pre-wrap;color:var(--text-muted);max-height:220px;overflow:auto}
 .wa-quick-btn{font-family:inherit;font-size:10.5px;padding:3px 7px;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--text);cursor:pointer;margin-right:4px;white-space:nowrap}
 .note-item{font-size:11.5px;padding:7px 0;border-top:1px solid var(--border-soft);line-height:1.4}
 .note-item:first-child{border-top:none}
@@ -1332,7 +1338,9 @@ const WA_FIELD_LABELS=[
 ];
 let waVessels=[];
 let waDrafts=[]; // parsed/editable draft rows awaiting review — a message can bundle several vessels
-let waFilters={status:'',region:'',dwtMin:'',dwtMax:'',maxDraft:'',openBefore:'',insideDanube:false};
+let waFilters={status:'',region:'',dwtMin:'',dwtMax:'',maxDraft:'',openBefore:'',insideDanube:false,q:''};
+let waExpanded=new Set(); // row ids whose detail line is open
+let waPanelOpen={add:false,filters:false};
 let waSortKey='updated_at';
 let waSortDir='desc';
 
@@ -1345,6 +1353,7 @@ function waQueryString(){
   if(f.maxDraft) p.set('max_draft',f.maxDraft);
   if(f.openBefore) p.set('open_before',f.openBefore);
   if(f.insideDanube) p.set('inside_danube','true');
+  if(f.q && f.q.trim()) p.set('q',f.q.trim());
   return p.toString();
 }
 async function loadWaVessels(){
@@ -1353,7 +1362,7 @@ async function loadWaVessels(){
     const qs=waQueryString();
     const res=await apiRequest('GET','/api/wa-vessels'+(qs?'?'+qs:''));
     waVessels=res.vessels||[];
-    if(statusEl) statusEl.textContent=waVessels.length+' entr'+(waVessels.length===1?'y':'ies')+' · auto-expires ~20 days after the open window closes, unless the status was changed by hand';
+    if(statusEl) statusEl.textContent=waVessels.length+' entr'+(waVessels.length===1?'y':'ies')+' · click a row for full details · hover long text to read it all';
     renderWaTable();
   }catch(e){
     if(e.message!=='Session expired' && statusEl) statusEl.textContent='Could not load: '+e.message;
@@ -1415,7 +1424,7 @@ async function waParseMessage(){
   btn.disabled=true;
   statusEl.className='ai-status';
   statusEl.innerHTML='<span class="spin"></span>Parsing…';
-  const fieldList=WA_FIELD_LABELS.map(([k])=>k).filter(k=>!['status','source_chat','source_sender','source_date','note'].includes(k));
+  const fieldList=WA_FIELD_LABELS.map(([k])=>k).filter(k=>!['status','source_chat','source_sender','source_date'].includes(k));
   const makeDefaults=()=>Object.assign(Object.fromEntries(WA_FIELD_LABELS.map(([k])=>[k,null])),
     {status:'open', source_chat:chat||null, source_sender:sender||null, source_date:sdate||null, raw_text:raw});
   // One WhatsApp message very often bundles several vessels/offers in a single text
@@ -1431,7 +1440,9 @@ Rules:
 - "open_from"/"open_to" must be ISO dates (YYYY-MM-DD) if a year isn't given, assume the nearest future occurrence of that month/day from today (${todayStr()}); a single date with no range -> same value for both.
 - "build_year" is a 4-digit year (e.g. from "blt 1996" or "built 2021").
 - Numeric fields (dwt, dwcc, intake_mt, grain_cbft, bale_cbft, draft_m, mmsi) must be plain numbers, no units/commas, or null. "dwcc" and "cc" in the text both mean dwcc.
-- "restrictions" should capture things like "no UKR/RUS", "Sulina only", "cannot call Reni", etc. verbatim-ish.
+- "restrictions" = hard limits that can rule a vessel out: "no UKR/RUS", "Sulina only", "cannot call Reni", "no Paris MOU", "non-reversible"... verbatim-ish.
+- "freight_idea" = ANY rate / freight talk in the message, kept verbatim-ish with route and unit (e.g. "ex Reni/Izmail to Marmara USD 95 pmt; can fix 91-92 pmt via Bystroe").
+- "note" = EVERYTHING else useful from the message that has no dedicated field — free days, demurrage/detention terms, load/discharge rates, "ready to pass via Bystroe", ETA/ETS details, cargo type and stowage factor, who the owner/broker is, vessel class/P&I, any remark. Write it as a compact one-line summary in the message's own words; lose nothing that a charterer would care about. Never leave "note" null when the message contains such details.
 - Leave ANYTHING not stated in the message as null — never guess or fill in a plausible-sounding value.
 
 MESSAGE:
@@ -1538,9 +1549,19 @@ async function waSaveDraft(idx){
   }
 }
 
+function waSize(v){ return v.dwt||v.dwcc||v.intake_mt||0; }
+function waSizeText(v){
+  const n=x=>Math.round(x).toLocaleString();
+  const parts=[];
+  if(v.dwt) parts.push('DWT '+n(v.dwt));
+  if(v.dwcc) parts.push('DWCC '+n(v.dwcc));
+  if(v.intake_mt) parts.push('Intake '+n(v.intake_mt));
+  return parts.join(' · ');
+}
 function waSortedRows(){
   const dir=waSortDir==='asc'?1:-1;
   return [...waVessels].sort((a,b)=>{
+    if(waSortKey==='size') return (waSize(a)-waSize(b))*dir;
     let av=a[waSortKey], bv=b[waSortKey];
     if(waSortKey==='dwt'||waSortKey==='build_year'||waSortKey==='draft_m'){ av=av||0; bv=bv||0; return (av-bv)*dir; }
     av=av||''; bv=bv||'';
@@ -1552,37 +1573,59 @@ function waOpenRangeText(v){
   return v.open_from || v.open_to || '—';
 }
 const WA_STATUS_NEXT={open:'on_subs', on_subs:'fixed'}; // one-click progression shown on the quick-status button
+// long free text: clamp to 2 lines in the table but keep the whole thing in the native tooltip
+function waClip(txt,color){
+  if(!txt) return '<span style="color:var(--text-muted)">—</span>';
+  return `<div class="wa-clip" title="${escapeHtml(txt)}"${color?` style="color:${color}"`:''}>${escapeHtml(txt)}</div>`;
+}
+function waDetailHtml(v){
+  const skip=['id','created_at','updated_at','raw_text'];
+  const labels=Object.fromEntries(WA_FIELD_LABELS);
+  const items=Object.keys(v).filter(k=>!skip.includes(k) && v[k]!==null && v[k]!=='').map(k=>
+    `<div><b>${escapeHtml(labels[k]||k)}</b>${escapeHtml(v[k])}</div>`).join('');
+  const raw=v.raw_text?`<div class="wa-raw">${escapeHtml(v.raw_text)}</div>`:'';
+  return `<div class="wa-detail-grid">${items}</div>${raw}`;
+}
 function renderWaTable(){
   const wrap=document.getElementById('wa-table-wrap');
   if(!wrap) return;
   const rows=waSortedRows();
-  if(!rows.length){ wrap.innerHTML='<div class="idea-empty">No WhatsApp vessel entries logged yet — paste a message above to start.</div>'; return; }
-  const cols=[['name','Vessel'],['imo','IMO'],['build_year','Built'],['dwt','DWT'],['draft_m','Draft'],['position','Position'],['region','Region'],['open_from','Open'],['restrictions','Restrictions'],['status','Status']];
+  if(!rows.length){ wrap.innerHTML='<div class="idea-empty">Nothing found — no WhatsApp entries match, or none logged yet.</div>'; return; }
+  const cols=[['name','Vessel'],['imo','IMO'],['build_year','Built'],['size','Size, mt'],['draft_m','Draft'],['position','Position'],['open_from','Open'],['freight_idea','Freight idea'],['restrictions','Restrictions'],['note','Notes'],['status','Status']];
   const arrow=(k)=> k===waSortKey ? (waSortDir==='asc'?' ▲':' ▼') : '';
   const head=cols.map(([k,label])=>`<th data-sort="${k}" style="cursor:pointer;user-select:none">${label}${arrow(k)}</th>`).join('')+'<th></th>';
   const body=rows.map(v=>{
     const next=WA_STATUS_NEXT[v.status];
-    return `<tr data-id="${v.id}">
+    const open=waExpanded.has(v.id);
+    const pos=[v.position,v.region].filter(Boolean).join(' · ');
+    return `<tr class="wa-row" data-id="${v.id}" title="Click for all details and the original message">
       <td data-label="Vessel"><b>${escapeHtml(v.name||'(no name)')}</b></td>
       <td data-label="IMO">${escapeHtml(v.imo||'—')}</td>
       <td data-label="Built">${v.build_year||'—'}</td>
-      <td data-label="DWT">${v.dwt?Math.round(v.dwt).toLocaleString():'—'}</td>
+      <td data-label="Size, mt">${escapeHtml(waSizeText(v)||'—')}</td>
       <td data-label="Draft">${v.draft_m||'—'}</td>
-      <td data-label="Position">${escapeHtml(v.position||'—')}</td>
-      <td data-label="Region">${escapeHtml(v.region||'—')}</td>
+      <td data-label="Position">${waClip(pos)}</td>
       <td data-label="Open">${escapeHtml(waOpenRangeText(v))}</td>
-      <td class="tile-sub" data-label="Restrictions" style="display:table-cell;color:${v.restrictions?'var(--err)':'inherit'}">${escapeHtml(v.restrictions||'')}</td>
+      <td data-label="Freight idea">${waClip(v.freight_idea)}</td>
+      <td data-label="Restrictions">${waClip(v.restrictions,'var(--err)')}</td>
+      <td data-label="Notes">${waClip(v.note)}</td>
       <td data-label="Status"><span class="wa-status-pill wa-status-${escapeHtml(v.status)}">${escapeHtml(v.status)}</span></td>
       <td style="white-space:nowrap">
         ${next?`<button class="wa-quick-btn" data-id="${v.id}" data-status="${next}" title="Mark ${next}">→ ${next}</button>`:''}
         ${v.status!=='withdrawn'?`<button class="wa-quick-btn" data-id="${v.id}" data-status="withdrawn" title="Withdraw">✕</button>`:''}
       </td>
-    </tr>`;
+    </tr>${open?`<tr class="wa-detail" data-detail-for="${v.id}"><td colspan="${cols.length+1}">${waDetailHtml(v)}</td></tr>`:''}`;
   }).join('');
-  wrap.innerHTML=`<div style="overflow-x:auto"><table class="ais-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
+  wrap.innerHTML=`<div style="overflow-x:auto"><table class="ais-table wa-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
   wrap.querySelectorAll('th[data-sort]').forEach(th=>th.onclick=()=>{
     const k=th.dataset.sort;
     if(k===waSortKey) waSortDir=waSortDir==='asc'?'desc':'asc'; else { waSortKey=k; waSortDir='asc'; }
+    renderWaTable();
+  });
+  wrap.querySelectorAll('tr.wa-row').forEach(tr=>tr.onclick=(ev)=>{
+    if(ev.target.closest('button')) return;
+    const id=tr.dataset.id;
+    if(waExpanded.has(id)) waExpanded.delete(id); else waExpanded.add(id);
     renderWaTable();
   });
   wrap.querySelectorAll('.wa-quick-btn').forEach(btn=>btn.onclick=async()=>{
@@ -1600,6 +1643,7 @@ function waApplyFiltersFromInputs(){
     maxDraft:document.getElementById('wa-f-maxdraft').value,
     openBefore:document.getElementById('wa-f-openbefore').value,
     insideDanube:document.getElementById('wa-f-danube').checked,
+    q:document.getElementById('wa-f-q').value,
   };
   loadWaVessels();
 }
@@ -1607,21 +1651,23 @@ function waApplyFiltersFromInputs(){
 async function renderWaMain(){
   const wrap=document.getElementById('main-wrap');
   const f=waFilters;
+  // The three fields below used to be shown as inputs; they're now auto-filled from the
+  // pasted WhatsApp prefix (sender/date) and kept hidden — nobody needs to touch them.
   wrap.innerHTML=`
-    <div class="card">
-      <div class="hint-box" style="margin-bottom:10px">Paste one WhatsApp message (a vessel offer, position, or cargo-seeking request) — it gets parsed into fields you can check before saving. The same chat you use to search for candidates can also read and fill this list directly via MCP. If your paste still has WhatsApp's own "[time, date] Sender:" prefix on it, sender and date below fill in automatically.</div>
-      <div class="field-grid">
-        <div class="field"><label>Source chat</label><input type="text" id="wa-source-chat" placeholder="e.g. SHIPS OFFERS & UPDATES"></div>
-        <div class="field"><label>Sender</label><input type="text" id="wa-source-sender" placeholder="auto-filled from the paste, or type it"></div>
-        <div class="field"><label>Message date</label><input type="date" id="wa-source-date" value="${new Date().toISOString().slice(0,10)}"></div>
-      </div>
-      <textarea class="ai-textarea" id="wa-paste-text" style="margin-top:10px" placeholder="Paste the WhatsApp message text here (with or without its [time, date] Sender: prefix)..."></textarea>
+    <details class="card ai-panel" id="wa-panel-add" ${waPanelOpen.add?'open':''}>
+      <summary><span class="chev">▶</span><span class="section-title">Add from WhatsApp</span></summary>
+      <input type="hidden" id="wa-source-chat" value="WhatsApp">
+      <input type="hidden" id="wa-source-sender" value="">
+      <input type="hidden" id="wa-source-date" value="${new Date().toISOString().slice(0,10)}">
+      <textarea class="ai-textarea" id="wa-paste-text" placeholder="Paste the WhatsApp message(s) here — you can copy them straight from the chat, with the [time, date] Sender: prefix..."></textarea>
       <button class="btn-primary" id="wa-parse-btn" style="margin-top:8px">${icon('refresh')} Parse message</button>
       <div class="ai-status" id="wa-parse-status"></div>
       <div id="wa-draft-wrap"></div>
-    </div>
-    <div class="card" style="margin-top:14px">
+    </details>
+    <details class="card ai-panel" id="wa-panel-filters" style="margin-top:14px" ${waPanelOpen.filters?'open':''}>
+      <summary><span class="chev">▶</span><span class="section-title">Search &amp; filters</span></summary>
       <div class="ais-filters">
+        <div class="field" style="flex:1.6 1 240px"><label>Search text</label><input type="text" id="wa-f-q" placeholder="name, IMO, bystroe, no ukr, free days…" value="${escapeHtml(f.q||'')}"></div>
         <div class="field"><label>Status</label><select id="wa-f-status"><option value="">All</option>${waStatusOptions(f.status)}</select></div>
         <div class="field"><label>Region</label><select id="wa-f-region"><option value="">All</option>${waRegionOptions(f.region)}</select></div>
         <div class="field"><label>DWT from</label><input type="number" id="wa-f-dwtmin" value="${escapeHtml(f.dwtMin)}"></div>
@@ -1631,13 +1677,18 @@ async function renderWaMain(){
         <label class="ai-toggle" style="align-self:center"><input type="checkbox" id="wa-f-danube" ${f.insideDanube?'checked':''}> inside Danube only</label>
         <button class="export-btn" id="wa-filter-btn" style="align-self:flex-end">Apply</button>
       </div>
-    </div>
-    <div class="hint-box" id="wa-status">Loading…</div>
+    </details>
+    <div class="hint-box" id="wa-status" style="margin-top:14px">Loading…</div>
     <div class="tile-board-card">
       <div id="wa-table-wrap"><div class="idea-empty">Loading…</div></div>
     </div>`;
+  ['add','filters'].forEach(k=>{
+    const el=document.getElementById('wa-panel-'+k);
+    el.addEventListener('toggle',()=>{ waPanelOpen[k]=el.open; });
+  });
   document.getElementById('wa-parse-btn').onclick=waParseMessage;
   document.getElementById('wa-filter-btn').onclick=waApplyFiltersFromInputs;
+  document.getElementById('wa-f-q').addEventListener('keydown',e=>{ if(e.key==='Enter') waApplyFiltersFromInputs(); });
   document.getElementById('wa-paste-text').addEventListener('input', waAutofillFromPasteText);
   renderWaDraftForm();
   await loadWaVessels();
