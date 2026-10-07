@@ -448,6 +448,8 @@ function computeLumpsum(){
     resEl.innerHTML='<div class="idea-empty">enter base rate, quantity, base SF and target SF</div>';
     return;
   }
+  const shipRaw=document.getElementById('lc-ship-qty').value;
+  const shipQty=shipRaw!==''?parseFloat(shipRaw):null;
   const lumpsum=rate*qty;
   const usedCapacity=(targetCap && targetCap>0);
   const targetQty=usedCapacity?targetCap:(qty*baseSf/targetSf);
@@ -458,10 +460,32 @@ function computeLumpsum(){
     <div>Lumpsum: <b>$${lumpsum.toLocaleString(undefined,{maximumFractionDigits:0})}</b></div>
     <div>Target quantity: <b>${targetQty.toLocaleString(undefined,{maximumFractionDigits:0})} t</b> <span style="color:var(--text-muted);font-size:10px">(${escapeHtml(method)})</span></div>
     <div style="margin-top:6px;font-size:16px">New rate: <b>$${newRate.toFixed(2)}/mt</b></div>
+    ${shipQty>0?waShipBlock(newRate,lumpsum,targetQty,shipQty,targetSf):''}
+  </div>`;
+}
+/* The rate worked out above (for a full ship at the target SF) applied to the quantity
+   of target-SF cargo actually being shipped: total = new_rate * ship_qty. Also flags
+   a quantity that wouldn't fit and shows how far below the full lumpsum it lands. */
+function waShipBlock(newRate,lumpsum,targetQty,shipQty,targetSf){
+  const fmt=n=>n.toLocaleString(undefined,{maximumFractionDigits:0});
+  newRate=Math.round(newRate*100)/100; // use the rate exactly as shown, so the total matches a hand check
+  const total=newRate*shipQty;
+  const diff=total-lumpsum;
+  let note='';
+  if(shipQty>targetQty*1.0005){
+    note=`<div style="color:var(--err);font-size:11px;margin-top:4px">⚠ ${fmt(shipQty)} t at SF ${targetSf} does not fit — the vessel takes about ${fmt(targetQty)} t (over by ${fmt(shipQty-targetQty)} t)</div>`;
+  }else{
+    const fill=shipQty/targetQty*100;
+    note=`<div style="color:var(--text-muted);font-size:11px;margin-top:4px">Fits: ${fill.toFixed(0)}% of the vessel's capacity at SF ${targetSf}. Full lumpsum $${fmt(lumpsum)} → ${diff<0?'−':'+'}$${fmt(Math.abs(diff))} vs the full ship.</div>`;
+  }
+  return `<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--border-soft)">
+    <div>Cargo to ship: <b>${fmt(shipQty)} t</b> at SF ${targetSf} × <b>$${newRate.toFixed(2)}/mt</b></div>
+    <div style="margin-top:4px;font-size:16px">Lumpsum for this cargo: <b>$${fmt(total)}</b></div>
+    ${note}
   </div>`;
 }
 function attachLumpsumCalc(){
-  ['lc-base-rate','lc-base-qty','lc-base-sf','lc-target-sf','lc-target-cap'].forEach(id=>{
+  ['lc-base-rate','lc-base-qty','lc-base-sf','lc-target-sf','lc-target-cap','lc-ship-qty'].forEach(id=>{
     const el=document.getElementById(id);
     if(el) el.addEventListener('input', computeLumpsum);
   });
@@ -2178,6 +2202,7 @@ function renderBoardMain(){
             <div class="field"><label>Target SF</label><input type="number" id="lc-target-sf" step="0.1" placeholder="e.g. 58"></div>
           </div>
           <div class="field" style="margin-top:10px"><label>Target vessel capacity, t (optional)</label><input type="number" id="lc-target-cap" step="1" placeholder="leave blank to estimate from SF ratio"></div>
+          <div class="field" style="margin-top:10px"><label>Cargo to ship at target SF, t (optional)</label><input type="number" id="lc-ship-qty" step="1" placeholder="e.g. 5000 — applies the new rate to this quantity"></div>
           <div id="lc-result" style="margin-top:12px"></div>
         </details>
         <details class="card ai-panel" id="panel-msggen" style="margin-top:14px" ${panelState.msggen?'open':''}>
