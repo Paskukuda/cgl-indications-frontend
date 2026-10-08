@@ -1455,6 +1455,7 @@ Rules:
 - If the message is not a vessel offer or cargo-seeking request at all (small talk, a question, an acknowledgement, a forwarded document with no vessel details, a deleted-message placeholder, etc.), return an empty array [].
 - "region" must be exactly one of: ${WA_REGIONS.map(r=>'"'+r+'"').join(', ')}, or null if you can't tell from the text.
 - "open_from"/"open_to" must be ISO dates (YYYY-MM-DD) if a year isn't given, assume the nearest future occurrence of that month/day from today (${todayStr()}); a single date with no range -> same value for both.
+- DWT / DWCC / intake with a dot or comma before exactly three digits (e.g. "5.447", "28,500") use it as a thousands separator: 5.447 → 5447. Never output a size below 100 for these fields.
 - "build_year" is a 4-digit year (e.g. from "blt 1996" or "built 2021").
 - Numeric fields (dwt, dwcc, intake_mt, grain_cbft, bale_cbft, draft_m, mmsi) must be plain numbers, no units/commas, or null. "dwcc" and "cc" in the text both mean dwcc.
 - "restrictions" = hard limits that can rule a vessel out: "no UKR/RUS", "Sulina only", "cannot call Reni", "no Paris MOU", "non-reversible"... verbatim-ish.
@@ -1507,8 +1508,45 @@ function waDraftFieldValue(idx,k){
   const el=document.getElementById(`wa-d-${idx}-${k}`);
   if(!el) return null;
   let v=el.value.trim();
-  const numeric=['build_year','dwt','dwcc','intake_mt','grain_cbft','bale_cbft','draft_m','mmsi'].includes(k);
-  return v===''?null:(numeric?Number(v):v);
+  const numeric=WA_NUMERIC.includes(k);
+  return v===''?null:(numeric?waNum(k,v):v);
+}
+const WA_NUMERIC=['build_year','dwt','dwcc','intake_mt','grain_cbft','bale_cbft','draft_m','mmsi'];
+// "5.447" / "5,447" typed for a size field means 5 447 (thousands separator), not 5.447
+function waNum(k,v){
+  v=String(v).replace(/\s/g,'');
+  if(['dwt','dwcc','intake_mt','grain_cbft','bale_cbft'].includes(k) && /^\d{1,3}([.,]\d{3})+$/.test(v)) v=v.replace(/[.,]/g,'');
+  else v=v.replace(',','.');
+  const n=Number(v);
+  return isNaN(n)?null:n;
+}
+let waEditId=null;
+function waEditFormHtml(v){
+  const fld=(k,label)=>{
+    const id='wa-e-'+k, val=v[k]===null||v[k]===undefined?'':v[k];
+    if(k==='region') return `<div class="field"><label>${label}</label><select id="${id}">${waRegionOptions(v.region)}</select></div>`;
+    if(k==='status') return `<div class="field"><label>${label}</label><select id="${id}">${waStatusOptions(v.status||'open')}</select></div>`;
+    if(k==='open_from'||k==='open_to'||k==='source_date') return `<div class="field"><label>${label}</label><input type="date" id="${id}" value="${escapeHtml(val)}"></div>`;
+    return `<div class="field"><label>${label}</label><input type="text" ${WA_NUMERIC.includes(k)?'inputmode="decimal"':''} id="${id}" value="${escapeHtml(val)}"></div>`;
+  };
+  return `<div class="field-grid">${WA_FIELD_LABELS.map(([k,l])=>fld(k,l)).join('')}</div>
+    <div style="display:flex;gap:8px;margin-top:12px;align-items:center">
+      <button class="btn-primary wa-edit-save" data-id="${v.id}">${icon('checksquare',15)} Save changes</button>
+      <button class="export-btn wa-edit-cancel">Cancel</button>
+      <span class="ai-status" id="wa-edit-status"></span>
+    </div>`;
+}
+async function waSaveEdit(id){
+  const st=document.getElementById('wa-edit-status');
+  const body={};
+  WA_FIELD_LABELS.forEach(([k])=>{
+    const el=document.getElementById('wa-e-'+k); if(!el) return;
+    const v=el.value.trim();
+    body[k]=v===''?null:(WA_NUMERIC.includes(k)?waNum(k,v):v);
+  });
+  st.textContent='Saving…'; st.className='ai-status';
+  try{ await apiRequest('PUT','/api/wa-vessels/'+id, body); waEditId=null; await loadWaVessels(); }
+  catch(e){ if(e.message!=='Session expired'){ st.textContent='Save failed: '+e.message; st.className='ai-status err'; } }
 }
 
 function renderWaDraftForm(){
@@ -1521,7 +1559,7 @@ function renderWaDraftForm(){
     if(k==='status') return `<div class="field"><label>${label}</label><select id="${id}">${waStatusOptions(d.status||'open')}</select></div>`;
     if(k==='open_from'||k==='open_to'||k==='source_date') return `<div class="field"><label>${label}</label><input type="date" id="${id}" value="${escapeHtml(d[k]||'')}"></div>`;
     const numeric=['build_year','dwt','dwcc','intake_mt','grain_cbft','bale_cbft','draft_m','mmsi'].includes(k);
-    return `<div class="field"><label>${label}</label><input type="${numeric?'number':'text'}" id="${id}" value="${escapeHtml(d[k]===null||d[k]===undefined?'':d[k])}"></div>`;
+    return `<div class="field"><label>${label}</label><input type="text" ${numeric?'inputmode="decimal"':''} id="${id}" value="${escapeHtml(d[k]===null||d[k]===undefined?'':d[k])}"></div>`;
   };
   wrap.innerHTML=waDrafts.map((d,idx)=>`
     <div class="card" style="margin-top:12px" data-draft-idx="${idx}">
@@ -1639,10 +1677,11 @@ function renderWaTable(){
       <td data-label="Notes">${waClip(v.note)}</td>
       <td data-label="Status"><span class="wa-status-pill wa-status-${escapeHtml(v.status)}">${escapeHtml(v.status)}</span></td>
       <td style="white-space:nowrap">
+        <button class="wa-quick-btn wa-edit-btn" data-id="${v.id}" title="Edit all fields">✎</button>
         ${next?`<button class="wa-quick-btn" data-id="${v.id}" data-status="${next}" title="Mark ${next}">→ ${next}</button>`:''}
         ${v.status!=='withdrawn'?`<button class="wa-quick-btn" data-id="${v.id}" data-status="withdrawn" title="Withdraw">✕</button>`:''}
       </td>
-    </tr>${open?`<tr class="wa-detail" data-detail-for="${v.id}"><td colspan="${cols.length+1}">${waDetailHtml(v)}</td></tr>`:''}`;
+    </tr>${waEditId===v.id?`<tr class="wa-detail" data-detail-for="${v.id}"><td colspan="${cols.length+1}">${waEditFormHtml(v)}</td></tr>`:(open?`<tr class="wa-detail" data-detail-for="${v.id}"><td colspan="${cols.length+1}">${waDetailHtml(v)}</td></tr>`:'')}`;
   }).join('');
   wrap.innerHTML=`<div style="overflow-x:auto"><table class="ais-table wa-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
   wrap.querySelectorAll('th[data-sort]').forEach(th=>th.onclick=()=>{
@@ -1656,7 +1695,10 @@ function renderWaTable(){
     if(waExpanded.has(id)) waExpanded.delete(id); else waExpanded.add(id);
     renderWaTable();
   });
-  wrap.querySelectorAll('.wa-quick-btn').forEach(btn=>btn.onclick=async()=>{
+  wrap.querySelectorAll('.wa-edit-btn').forEach(btn=>btn.onclick=()=>{ waEditId=waEditId===btn.dataset.id?null:btn.dataset.id; renderWaTable(); });
+  wrap.querySelectorAll('.wa-edit-save').forEach(btn=>btn.onclick=()=>waSaveEdit(btn.dataset.id));
+  wrap.querySelectorAll('.wa-edit-cancel').forEach(btn=>btn.onclick=()=>{ waEditId=null; renderWaTable(); });
+  wrap.querySelectorAll('.wa-quick-btn:not(.wa-edit-btn)').forEach(btn=>btn.onclick=async()=>{
     try{ await apiRequest('PUT','/api/wa-vessels/'+btn.dataset.id, {status:btn.dataset.status}); await loadWaVessels(); }
     catch(e){ if(e.message!=='Session expired') alert('Could not update: '+e.message); }
   });
