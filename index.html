@@ -1358,7 +1358,7 @@ let waDrafts=[]; // parsed/editable draft rows awaiting review — a message can
 let waFilters={status:'',region:'',dwtMin:'',dwtMax:'',maxDraft:'',openBefore:'',insideDanube:false,q:''};
 let waExpanded=new Set(); // row ids whose detail line is open
 let waPanelOpen={add:false,filters:false};
-let waSortKey='updated_at';
+let waSortKey='created_at';
 let waSortDir='desc';
 
 function waQueryString(){
@@ -1660,7 +1660,7 @@ function renderWaTable(){
   const cols=[['name','Vessel'],['size','Size / draft'],['position','Position / open'],['freight_idea','Freight idea'],['restrictions','Restrictions / notes'],['status','Status']];
   const arrow=(k)=> k===waSortKey ? (waSortDir==='asc'?' ▲':' ▼') : '';
   const head=cols.map(([k,label])=>`<th data-sort="${k}" style="cursor:pointer;user-select:none">${label}${arrow(k)}</th>`).join('')+'<th></th>';
-  const sub=(t)=>t?`<div style="font-size:11px;color:var(--text-muted);line-height:1.35">${escapeHtml(t)}</div>`:'';
+  const sub=(t)=>t?`<div style="font-size:11px;color:var(--text-muted);line-height:1.35;max-width:190px">${escapeHtml(t)}</div>`:'';
   const body=rows.map(v=>{
     const next=WA_STATUS_NEXT[v.status];
     const open=waExpanded.has(v.id);
