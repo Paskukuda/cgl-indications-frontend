@@ -1259,7 +1259,7 @@ function renderLionTable(){
   if(!wrap) return;
   const rows=lionSortedRows();
   if(!rows.length){ wrap.innerHTML='<div class="idea-empty">No vessels in this region yet — upload a position list to fill it in.</div>'; return; }
-  const cols=[['vessel_name','Vessel'],['built','Built'],['dwt','Dwt'],['position','Position'],['open_from','Open from'],['comments','Comments']];
+  const cols=[['vessel_name','Vessel'],['built','Built'],['dwt','Dwt'],['position','Position'],['open_from','Open from'],['comments','Comments'],['region','Region']];
   const arrow=(k)=> k===lionSortKey ? (lionSortDir==='asc'?' ▲':' ▼') : '';
   const head=cols.map(([k,label])=>`<th data-sort="${k}" style="cursor:pointer;user-select:none">${label}${arrow(k)}</th>`).join('')+'<th></th>';
   const body=rows.map(p=>`<tr data-id="${p.id}">
@@ -1269,6 +1269,7 @@ function renderLionTable(){
       <td data-label="Position">${escapeHtml(p.position||'—')}</td>
       <td data-label="Open from">${escapeHtml(lionDateRangeText(p))}</td>
       <td class="tile-sub" data-label="Comments" style="display:table-cell">${escapeHtml(p.comments||'')}${p.comments?'<br>':''}<span style="opacity:.6">upd ${escapeHtml((p.updated_at||'').slice(0,10))}</span></td>
+      <td data-label="Region"><select class="lion-region-sel" data-id="${p.id}" style="font-size:12px;padding:4px 6px;max-width:130px"><option value=""${p.region?'':' selected'}>Unsorted</option>${lionRegions.map(r=>`<option value="${escapeHtml(r.id)}"${p.region===r.id?' selected':''}>${escapeHtml(r.label)}</option>`).join('')}</select></td>
       <td><button class="lion-del-btn" data-id="${p.id}" title="Delete row" style="background:none;border:0;color:var(--text-muted);cursor:pointer;font-size:14px">✕</button></td>
     </tr>`).join('');
   wrap.innerHTML=`<div style="overflow-x:auto"><table class="ais-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
@@ -1276,6 +1277,10 @@ function renderLionTable(){
     const k=th.dataset.sort;
     if(k===lionSortKey) lionSortDir=lionSortDir==='asc'?'desc':'asc'; else { lionSortKey=k; lionSortDir='asc'; }
     renderLionTable();
+  });
+  wrap.querySelectorAll('.lion-region-sel').forEach(sel=>sel.onchange=async()=>{
+    try{ await apiRequest('PUT','/api/lion-positions/'+sel.dataset.id,{region:sel.value||null}); await loadLionPositions(); }
+    catch(e){ if(e.message!=='Session expired') alert('Could not move: '+e.message); }
   });
   wrap.querySelectorAll('.lion-del-btn').forEach(btn=>btn.onclick=async()=>{
     if(!confirm('Delete this vessel from the list?')) return;
@@ -1289,6 +1294,7 @@ async function loadLionPositions(){
     const res=await apiRequest('GET','/api/lion-positions');
     lionRegions=res.regions||[];
     lionPositions=res.positions||[];
+    if(activeLionRegion==='__unsorted__' && !lionPositions.some(p=>!p.region)) activeLionRegion=lionRegions[0]?lionRegions[0].id:null;
     if(!lionRegions.some(r=>r.id===activeLionRegion) && activeLionRegion!=='__unsorted__'){
       activeLionRegion=lionRegions[0]?lionRegions[0].id:null;
     }
