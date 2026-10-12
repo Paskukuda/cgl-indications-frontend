@@ -1141,7 +1141,9 @@ function readAisFilters(){
     port:document.getElementById('ais-f-port').value,
     radius:document.getElementById('ais-f-radius').value,
     dwtMin:document.getElementById('ais-f-dwtmin').value, dwtMax:document.getElementById('ais-f-dwtmax').value,
-    loaMin:document.getElementById('ais-f-loamin').value, loaMax:document.getElementById('ais-f-loamax').value
+    // the hull-length inputs only exist while that section is expanded — keep the saved values otherwise
+    loaMin:document.getElementById('ais-f-loamin')?document.getElementById('ais-f-loamin').value:aisFilters.loaMin,
+    loaMax:document.getElementById('ais-f-loamax')?document.getElementById('ais-f-loamax').value:aisFilters.loaMax
   };
   try{ safeStorage.setItem(AIS_FILTERS_KEY, JSON.stringify(aisFilters)); }catch(e){}
 }
@@ -1923,6 +1925,7 @@ async function loadAisVessels(){
   const tableWrap=document.getElementById('ais-table-wrap');
   const btn=document.getElementById('ais-refresh-btn');
   if(btn) btn.disabled=true;
+  const cntEl=document.getElementById('ais-count'); if(cntEl) cntEl.textContent='Loading…';
   try{
     const res=await apiRequest('GET','/api/vessels'+aisQuery());
     aisCache=res.vessels||[];
