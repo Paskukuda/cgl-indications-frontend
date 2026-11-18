@@ -301,9 +301,10 @@ details.section summary .sec-count.all-done{color:var(--success);background:var(
      scroll — brand + icon buttons stay on row 1, the tab list gets its
      own full-width row 2 and wraps there too if needed. */
   .tab-bar-inner{flex-wrap:wrap;padding:8px 12px;gap:8px 6px;overflow-x:visible;min-height:0}
-  .tab-bar-brand{font-size:10.5px;order:1}
+  .tab-bar-brand{font-size:10.5px;order:1;flex:1 1 0;min-width:0;white-space:normal;line-height:1.25}
+  .tab-bar-brand img{flex-shrink:0}
   .tab-spacer{display:none}
-  .autosave-msg{position:static;order:2;font-size:9.5px;max-width:70px;overflow:hidden;text-overflow:ellipsis;margin-left:auto}
+  .autosave-msg{position:absolute;right:12px;bottom:0;font-size:9px;pointer-events:none}
   #refresh-btn,#logout-btn,#cargo-edit-topbtn,.theme-toggle{order:3}
   .main-tab-bar{order:10;flex-basis:100%;width:100%;flex-wrap:wrap;gap:6px}
   .main-tab-btn{padding:8px 12px;font-size:11.5px;flex:1 1 auto;text-align:center}
@@ -322,7 +323,7 @@ details.section summary .sec-count.all-done{color:var(--success);background:var(
 
   /* Touch targets: nudge icon buttons up from 34px and give them a
      little breathing room so adjacent ones aren't easy to mis-tap. */
-  .logout-btn,.theme-toggle{width:40px;height:40px}
+  .logout-btn,.theme-toggle{width:34px;height:34px;flex:0 0 34px}
 
   /* 16px, not 13px, on every real text input/select/textarea — below
      16px Mobile Safari zooms the whole page in on focus and the user
@@ -349,7 +350,6 @@ details.section summary .sec-count.all-done{color:var(--success);background:var(
 }
 @media(max-width:420px){
   .main-tab-btn{font-size:10.5px;padding:7px 8px}
-  .tab-bar-brand b{display:none}
 }
 </style>
 </head>
